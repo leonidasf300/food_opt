@@ -158,11 +158,20 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Must be "localhost", not "127.0.0.1": Next.js 16 dev mode blocks cross-origin requests to
+# its own dev resources (HMR websocket, dev font endpoint) from an origin other than the one
+# `next dev` reports -- landing a magic-link redirect on 127.0.0.1 silently breaks client-side
+# hydration on that page (no console errors, just a page that never finishes mounting).
+#
+# Wildcard, not just the bare origin: the frontend passes an explicit emailRedirectTo
+# of "/preferences" (see frontend/src/app/preferences/page.tsx) so the magic link
+# lands on a page that actually instantiates the Supabase client, instead of "/",
+# which doesn't and so never processes the callback's #access_token fragment.
+additional_redirect_urls = ["http://localhost:3000/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

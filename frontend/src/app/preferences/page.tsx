@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { redistributeWeights, type Weights } from "@/lib/preferences";
 
@@ -56,7 +57,16 @@ export default function PreferencesPage() {
   async function handleSignIn(event: FormEvent) {
     event.preventDefault();
     setErrorMessage(null);
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    // Explicit redirect target, not left to Auth's Site URL default: the home page
+    // ("/") never imports the Supabase client, so it never calls detectSessionInUrl
+    // on the magic-link callback's #access_token fragment -- the session would just
+    // sit unprocessed until the user happens to navigate to a page that does. This
+    // was found by testing the actual local flow, not by inspection: the page looked
+    // fine (no console errors) but silently never finished its auth check.
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/preferences` },
+    });
     if (error) {
       setErrorMessage(error.message);
       return;
@@ -148,6 +158,15 @@ export default function PreferencesPage() {
 
       {saved && <p className="text-green-600">Guardado.</p>}
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
+
+      <div className="flex gap-4 text-sm">
+        <Link href="/targets" className="underline">
+          Objetivos nutricionales →
+        </Link>
+        <Link href="/plan" className="underline">
+          Generar plan →
+        </Link>
+      </div>
     </main>
   );
 }
