@@ -90,6 +90,18 @@ def test_normalized_objective_value_is_bounded():
     assert -0.01 <= pyo.value(model.objective) <= 1.01
 
 
+def test_higher_variety_weight_uses_more_distinct_recipes():
+    variety_heavy = Weights(cost=0.05, variety=0.9, prep_time=0.05)
+    model = build_model(RECIPES, num_days=3, nutrient_targets=TARGETS, weights=variety_heavy)
+    solve(model)
+
+    distinct_recipes_used = sum(1 for r in model.RECIPES if pyo.value(model.y[r]) > 0.5)
+    # Regression test: _normalized()'s maximize branch had a sign bug that minimized
+    # variety instead of maximizing it, so no matter how much weight variety got, the
+    # solver always collapsed onto a single recipe.
+    assert distinct_recipes_used >= 2
+
+
 def test_degenerate_single_recipe_does_not_divide_by_zero():
     single_recipe = [Recipe(name="only_option", cost=2.0, prep_time_minutes=10, nutrients={"calories": 500})]
     targets = {"calories": NutrientTarget(minimum=500, maximum=500)}

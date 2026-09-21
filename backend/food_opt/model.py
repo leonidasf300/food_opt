@@ -161,13 +161,18 @@ def _payoff_table(
 
 
 def _normalized(expr, bounds: ObjectiveBounds, maximize: bool = False):
+    # For a maximized objective (variety), nadir < ideal, so nadir - ideal is
+    # negative -- span always means "the (possibly negative) step from ideal to
+    # nadir", not a magnitude. Keeping the two branches symmetric this way (rather
+    # than an early abs()) is what makes the near-zero-span guard below correct
+    # for both directions.
     span = bounds.nadir - bounds.ideal
     if abs(span) < 1e-9:
         # Objective doesn't vary across the individual optima (e.g. only one feasible
         # solution) -- it can't discriminate between plans, so it drops out of the sum.
         return 0
     if maximize:
-        return (bounds.nadir - expr) / span
+        return (bounds.ideal - expr) / (bounds.ideal - bounds.nadir)
     return (expr - bounds.ideal) / span
 
 
