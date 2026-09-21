@@ -111,7 +111,11 @@ def main() -> int:
     db_url = os.environ.get("SUPABASE_DB_URL", DEFAULT_LOCAL_DB_URL)
 
     imported, skipped = 0, []
-    with psycopg.connect(db_url, autocommit=True) as conn:
+    # prepare_threshold=None: Supabase's transaction-mode pooler doesn't support
+    # session-level prepared statements (each query may hit a different backend),
+    # so psycopg's default auto-prepare-after-N-executions breaks with
+    # DuplicatePreparedStatement once a query repeats enough times.
+    with psycopg.connect(db_url, autocommit=True, prepare_threshold=None) as conn:
         for name, fdc_id in SEED_INGREDIENTS:
             food = get_food(fdc_id, api_key)
 

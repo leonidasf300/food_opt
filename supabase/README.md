@@ -44,6 +44,8 @@ Definido en [`migrations/20260921140828_create_core_schema.sql`](migrations/2026
 | `recipes` | Nombre, tiempo de preparación, dueño (null = receta global) |
 | `recipe_ingredients` | Relación receta → ingredientes con cantidad — habilita agregación de lista de compras trazable |
 
+**Vista `recipe_totals`** ([`migrations/20260921201908_create_recipe_totals_view.sql`](migrations/20260921201908_create_recipe_totals_view.sql)): costo y nutrientes (calorías/proteína/grasa/carbohidratos) agregados por receta. Fuente única de esta lógica — la usan tanto el backend (`backend/food_opt/data.py`) como los scripts de import, en vez de reimplementarla en Python y SQL por separado. `security_invoker = true` para que respete RLS del que consulta, no del dueño de la vista.
+
 Todas las tablas tienen **RLS habilitado**: los datos personales (`profiles`, `preferences`, `user_nutrient_targets`) son visibles solo para su dueño; las tablas de referencia compartidas (`ingredients`, `ingredient_nutrients`, `recipes`, `recipe_ingredients`) son de lectura para cualquier usuario autenticado, y de escritura solo para el dueño de la fila (o vía `service_role` para los imports).
 
 RLS por sí solo no alcanza: Postgres chequea privilegios a nivel de tabla *antes* de evaluar RLS, así que sin `GRANT` explícito da "permission denied" sin importar la política. Los proyectos nuevos de Supabase pueden auto-otorgar esto ("Automatically expose new tables" en el dashboard), pero Supabase mismo recomienda desactivarlo — por eso [`migrations/20260921161544_grant_table_privileges.sql`](migrations/20260921161544_grant_table_privileges.sql) otorga explícitamente los privilegios al rol `authenticated` (nada para `anon`: todo requiere login). Verificado en local contra la API REST real (no solo como superusuario): con `auto_expose_new_tables = false`, `anon` da 401, `authenticated` puede leer `ingredients` pero no escribirla (403), y puede escribir su propio `profiles`/`preferences`.
@@ -59,8 +61,12 @@ npx supabase db reset                 # reaplica todas las migraciones + seed de
 
 ## Import de datos
 
-Ver [`scripts/README.md`](scripts/README.md) — script de import de USDA FoodData Central (`scripts/import_usda.py`), separado de las migraciones porque mueve datos, no esquema.
+Ver [`scripts/README.md`](scripts/README.md) — import de USDA, precios de prueba, y recetas de prueba, en ese orden (`import_usda.py` → `set_placeholder_prices.py` → `import_recipes.py`). Separados de las migraciones porque mueven datos, no esquema.
+
+## Auth: Site URL y redirect URLs (local)
+
+`config.toml` tiene `site_url = "http://localhost:3000"` y `additional_redirect_urls = ["http://localhost:3000/**"]` — **no uses `127.0.0.1` para probar login local**: Next.js 16 en modo dev bloquea recursos propios (HMR, fuentes) cuando se accede por un origen distinto al que reporta `next dev`, y eso rompe la hidratación de cualquier página en silencio (sin error en consola) si el magic link redirige ahí. El frontend además pasa `emailRedirectTo` explícito a `/preferences` en el login (ver `frontend/src/app/preferences/page.tsx`), porque `/` no instancia el cliente de Supabase y nunca procesaría el fragmento `#access_token=...` del callback.
 
 ## Pendiente
 
-Ver [`especificaciones/03-tasks.md`](../especificaciones/03-tasks.md): correr el import de USDA contra el proyecto cloud (por ahora solo está en local), evaluación de APIs comerciales, definición de mercado/fuente de precios.
+Ver [`especificaciones/03-tasks.md`](../especificaciones/03-tasks.md): evaluación de APIs comerciales, definición de mercado/fuente de precios real, redondeo/agregación de lista de compras.

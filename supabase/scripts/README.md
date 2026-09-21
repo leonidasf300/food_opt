@@ -47,3 +47,25 @@ No es un catálogo curado, es un punto de partida: extender la lista según haga
 ### Estado
 
 **Corrido contra local y contra el proyecto cloud real (`food-opt`): 15/15 ingredientes en ambos, verificado vía la API REST autenticada en los dos casos.**
+
+**Nota sobre el pooler:** todos los scripts acá conectan con `prepare_threshold=None`. Sin eso, correr un script con suficientes ejecuciones repetidas del mismo `INSERT`/`UPDATE` contra el connection pooler de Supabase (modo transacción) revienta con `DuplicatePreparedStatement` — el pooler puede mandar cada query a un backend distinto, y las prepared statements de psycopg no sobreviven eso. Lo encontramos corriendo `import_recipes.py` contra cloud.
+
+## `set_placeholder_prices.py`
+
+Completa `purchase_unit_label/size/price` de los 15 ingredientes de USDA con precios estimados a mano (mercado no definido todavía, ver [`especificaciones/00-constitution.md`](../../especificaciones/00-constitution.md)) — **no son precios reales**, existen solo para que el optimizador tenga un costo con qué trabajar mientras se define la fuente real. `purchase_unit_size` está en gramos, igual que `ingredient_nutrients.amount_per_100_units` (USDA reporta por masa incluso para líquidos como leche/aceite, no por volumen) — mantener esa consistencia importa para que el costo por porción salga bien calculado.
+
+```
+python set_placeholder_prices.py
+```
+
+Correr **después** de `import_usda.py` (necesita que los ingredientes ya existan) — por eso es un script, no una migración: una migración correría antes de que el import cree las filas y no actualizaría nada.
+
+## `import_recipes.py`
+
+Importa las recetas de prueba de [`seed_recipes.py`](seed_recipes.py) (8 recetas, combinaciones de los 15 ingredientes) y después imprime el costo/nutrientes agregados de cada una para poder verificarlos a mano contra la vista `recipe_totals`. Correr después de `import_usda.py` y `set_placeholder_prices.py`.
+
+```
+python import_recipes.py
+```
+
+Idempotente: re-correrlo borra y vuelve a crear las recetas que matchean por nombre (entre las recetas globales, `created_by is null`), no las duplica.
