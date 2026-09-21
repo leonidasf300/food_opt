@@ -1,15 +1,16 @@
 # Especificaciones — Metodología SDD (Spec-Driven Development)
 
-Esta carpeta organiza la documentación del proyecto según las fases de **SDD (Spec-Driven Development)**: la especificación se escribe primero y guía el diseño técnico y la validación, en lugar de escribirse después del código.
+Esta carpeta organiza la documentación del proyecto según las fases de **SDD (Spec-Driven Development)**: la especificación se escribe primero y guía el diseño técnico, el desglose de tareas y la validación, en lugar de escribirse después del código.
 
-Fases adoptadas para este proyecto (el número de archivo indica el orden del flujo):
+| # | Fase | Archivo | Estado |
+|---|---|---|---|
+| 0 | **Constitution** | [00-constitution.md](00-constitution.md) | ✅ Principios definidos (con puntos pendientes marcados) |
+| 1 | **Specify** | [01-specify.md](01-specify.md) | ✅ Alcance funcional y módulos |
+| 2 | **Plan** | [02-plan.md](02-plan.md) | ✅ Diseño técnico del modelo de optimización |
+| 3 | **Tasks** | [03-tasks.md](03-tasks.md) | ✅ Desglose inicial propuesto, sin refinar/priorizar aún |
+| 4 | **Validate** | [04-validate.md](04-validate.md) | ✅ Estrategia de testing y criterios de aceptación |
+| — | **Implement** | *(no aplica todavía)* | ⏳ No hay código en el repo; empieza cuando se haga el scaffolding |
 
-| Fase | Archivo | Objetivo |
-|---|---|---|
-| **Specify** | [01-specify.md](01-specify.md) | Qué se construye y por qué: alcance funcional y módulos del sistema. |
-| **Plan** | [02-plan.md](02-plan.md) | Cómo se construye: diseño técnico del modelo de optimización que satisface la especificación. |
-| **Validate** | [03-validate.md](03-validate.md) | Cómo se comprueba que lo construido cumple la especificación y el plan: estrategia de testing y criterios de aceptación. |
+`Clarify` y `Analyze` son pasos livianos de SDD (resolver ambigüedades antes de planear, y chequear consistencia entre fases) que no requieren un documento propio en un proyecto de este tamaño; se hacen como revisión directa de los archivos existentes.
 
-Cada archivo incluye al inicio una nota `Fase SDD` que explica su rol dentro de esta secuencia.
-
-A medida que el proyecto avance, fases adicionales de SDD (p. ej. `Tasks`/desglose de trabajo, `Constitution`/principios del proyecto) pueden agregarse como nuevos archivos numerados en esta misma carpeta.
+Cada archivo incluye al inicio una nota `Fase SDD` que explica su rol y enlaza a las fases vecinas.

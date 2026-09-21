@@ -6,10 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repository currently contains only specification documents — no source code, package manifests, or build tooling exist yet. There are no build/lint/test commands to run because nothing has been scaffolded. When code is added, this file should be updated with the actual commands (e.g. `npm run build`, `pytest`, etc.) and verified architecture.
 
-Specs are organized under `especificaciones/` following the **SDD (Spec-Driven Development)** methodology — see [`especificaciones/README.md`](especificaciones/README.md) for the phase breakdown:
+Specs are organized under `especificaciones/` following the **SDD (Spec-Driven Development)** methodology — see [`especificaciones/README.md`](especificaciones/README.md) for the full phase breakdown:
+- `especificaciones/00-constitution.md` — Constitution phase: non-negotiable project principles
 - `especificaciones/01-specify.md` — Specify phase: system overview and functional modules
 - `especificaciones/02-plan.md` — Plan phase: optimization model technical design
-- `especificaciones/03-validate.md` — Validate phase: verification/testing plan
+- `especificaciones/03-tasks.md` — Tasks phase: proposed task breakdown (unrefined)
+- `especificaciones/04-validate.md` — Validate phase: verification/testing plan
+
+Implement (writing the actual code) hasn't started — this repo has no source code yet.
 
 When adding new specs or docs, place them in `especificaciones/` and note which SDD phase they belong to.
 
