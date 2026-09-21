@@ -7,12 +7,20 @@ import { supabase } from "@/lib/supabase/client";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://localhost:8000";
 
 type DayPlan = { day: number; servings: Record<string, number> };
+type ShoppingListItem = {
+  ingredient_name: string;
+  quantity_needed: number;
+  purchase_unit_label: string | null;
+  units_to_buy: number | null;
+  cost: number | null;
+};
 type PlanResponse = {
   status: string;
   total_cost: number;
   total_prep_time_minutes: number;
   recipes_used: string[];
   days: DayPlan[];
+  shopping_list: ShoppingListItem[];
 };
 
 export default function PlanPage() {
@@ -157,6 +165,26 @@ export default function PlanPage() {
               </ul>
             </div>
           ))}
+
+          <div className="rounded border p-3">
+            <div className="font-medium">Lista de compras</div>
+            <table className="mt-2 w-full text-sm">
+              <tbody>
+                {plan.shopping_list.map((item) => (
+                  <tr key={item.ingredient_name} className="border-t">
+                    <td className="py-1 pr-2">{item.ingredient_name}</td>
+                    <td className="py-1 pr-2 text-gray-500">{item.quantity_needed} g</td>
+                    <td className="py-1 pr-2">
+                      {item.units_to_buy !== null
+                        ? `${item.units_to_buy} × ${item.purchase_unit_label}`
+                        : "sin precio cargado"}
+                    </td>
+                    <td className="py-1 text-right">{item.cost !== null ? `$${item.cost.toFixed(2)}` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

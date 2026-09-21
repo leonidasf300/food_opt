@@ -12,12 +12,13 @@ solved on its own first to find its ideal value (best possible) and
 its nadir value (worst value it takes at the other objectives'
 optima), then scaled to roughly [0, 1] before weighting.
 
-Scope of this first pass: recipe selection/servings per day and the
+Scope of this module: recipe selection/servings per day and the
 weighted objective + nutrient constraints only. Shopping-list
 aggregation and rounding to commercial purchasing units (also
-specified in 02-plan.md) need a recipe -> ingredient breakdown that
-the data layer doesn't provide yet, so they're tracked as separate
-tasks in especificaciones/03-tasks.md.
+specified in 02-plan.md) build on top of a solved plan and live in
+shopping_list.py instead, not because of a data gap anymore (recipe
+-> ingredient breakdown is populated) but to keep this module a
+single-purpose solver with no notion of purchasing.
 """
 
 from __future__ import annotations

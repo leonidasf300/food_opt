@@ -11,8 +11,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .data import fetch_recipes
+from .data import fetch_recipe_ingredients, fetch_recipes
 from .model import NutrientTarget, Weights, build_model, solve
+from .shopping_list import build_shopping_list
 
 app = FastAPI(title="Food Opt")
 
@@ -46,12 +47,21 @@ class DayPlan(BaseModel):
     servings: dict[str, int]
 
 
+class ShoppingListItemOut(BaseModel):
+    ingredient_name: str
+    quantity_needed: float
+    purchase_unit_label: str | None
+    units_to_buy: int | None
+    cost: float | None
+
+
 class PlanResponse(BaseModel):
     status: str
     total_cost: float
     total_prep_time_minutes: float
     recipes_used: list[str]
     days: list[DayPlan]
+    shopping_list: list[ShoppingListItemOut]
 
 
 @app.get("/health")
@@ -87,22 +97,35 @@ def create_plan(request: PlanRequest) -> PlanResponse:
     days: list[DayPlan] = []
     total_cost = 0.0
     total_prep_time = 0.0
-    used: set[str] = set()
+    total_servings: dict[str, int] = {}
     for d in model.DAYS:
         servings: dict[str, int] = {}
         for r in model.RECIPES:
             qty = round(pyo.value(model.x[r, d]))
             if qty > 0:
                 servings[r] = qty
-                used.add(r)
+                total_servings[r] = total_servings.get(r, 0) + qty
                 total_cost += recipe_by_name[r].cost * qty
                 total_prep_time += recipe_by_name[r].prep_time_minutes * qty
         days.append(DayPlan(day=d, servings=servings))
+
+    recipe_ingredients = fetch_recipe_ingredients(list(total_servings))
+    shopping_list = build_shopping_list(total_servings, recipe_ingredients)
 
     return PlanResponse(
         status=status,
         total_cost=round(total_cost, 2),
         total_prep_time_minutes=total_prep_time,
-        recipes_used=sorted(used),
+        recipes_used=sorted(total_servings),
         days=days,
+        shopping_list=[
+            ShoppingListItemOut(
+                ingredient_name=item.ingredient_name,
+                quantity_needed=round(item.quantity_needed, 1),
+                purchase_unit_label=item.purchase_unit_label,
+                units_to_buy=item.units_to_buy,
+                cost=round(item.cost, 2) if item.cost is not None else None,
+            )
+            for item in shopping_list
+        ],
     )
