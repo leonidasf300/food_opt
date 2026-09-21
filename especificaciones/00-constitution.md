@@ -9,10 +9,8 @@
 3. **Control explícito del usuario:** los pesos del modelo multi-objetivo (costo, variedad, tiempo de preparación) siempre deben ser ajustables por el usuario y sumar 100% (ver [02-plan.md](02-plan.md)).
 4. **Trazabilidad de datos:** toda cantidad de ingrediente mostrada en la lista de compras debe ser reconstruible a partir de las recetas y porciones que la originaron (agregación auditable).
 
-## Pendiente de definición
+## Decisiones técnicas
 
-Estos puntos son parte habitual de una Constitution SDD pero todavía no están decididos por el equipo — no se completan aquí para no inventar información:
-
-- Stack y versiones exactas del backend de optimización (los specs solo mencionan "Python" en el plan de testing, sin confirmarlo como decisión).
-- Estándares de estilo de código y proceso de revisión (PRs, linters, CI).
-- Política de versionado de datos nutricionales (fuente de la base de datos de alimentos).
+- **Backend de optimización:** Python + [Pyomo](http://www.pyomo.org/) como modelador, resuelto con **HiGHS** (solver LP/MIP libre, licencia MIT).
+- **Proceso/CI:** sin linters, CI ni revisión obligatoria de PRs por ahora; se define cuando el volumen de código lo justifique. Se commitea directo a `main`.
+- **Datos nutricionales:** base inicial importada como *snapshot* (no consultada en vivo) desde **USDA FoodData Central**, completada con APIs comerciales (Edamam/Nutritionix) para productos de marca faltantes, y curación manual para huecos restantes. Ver tarea de importación en [03-tasks.md](03-tasks.md).

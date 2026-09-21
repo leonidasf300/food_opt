@@ -10,9 +10,12 @@
 ## Data layer (Supabase)
 - [ ] Esquema: usuarios, preferencias, recetas, ingredientes, valores nutricionales.
 - [ ] Políticas de acceso (RLS) para datos de usuario.
+- [ ] Importar snapshot inicial de USDA FoodData Central a Supabase.
+- [ ] Evaluar APIs comerciales (Edamam/Nutritionix) para cubrir productos de marca faltantes en el snapshot de USDA.
+- [ ] Definir proceso de curación manual para huecos restantes (ingredientes sin match en ninguna fuente).
 
 ## Backend de optimización
-- [ ] Confirmar stack del backend (ver "Pendiente de definición" en [00-constitution.md](00-constitution.md)).
+- [ ] Setup del proyecto Python con Pyomo + HiGHS (ver [00-constitution.md](00-constitution.md)).
 - [ ] Implementar función objetivo multi-criterio (costo, variedad, tiempo).
 - [ ] Implementar restricciones nutricionales (macro/micro diarios y semanales).
 - [ ] Implementar redondeo a unidades de compra comercial.
