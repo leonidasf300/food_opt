@@ -12,8 +12,9 @@ no commercial pricing data, that's filled in later by a commercial API or
 manual curation (see especificaciones/03-tasks.md).
 
 Usage:
-    USDA_API_KEY=... python import_usda.py
-    USDA_API_KEY=... SUPABASE_DB_URL=postgresql://... python import_usda.py
+    Put USDA_API_KEY=... (and optionally SUPABASE_DB_URL=...) in a .env file next
+    to this script (see .env.example), or export them in the shell:
+        USDA_API_KEY=... python import_usda.py
 """
 
 from __future__ import annotations
@@ -24,8 +25,11 @@ import time
 
 import psycopg
 import requests
+from dotenv import load_dotenv
 
 from seed_ingredients import SEED_INGREDIENTS
+
+load_dotenv()
 
 FDC_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:58322/postgres"
