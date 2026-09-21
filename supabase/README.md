@@ -42,6 +42,10 @@ Definido en [`migrations/20260921140828_create_core_schema.sql`](migrations/2026
 
 Todas las tablas tienen **RLS habilitado**: los datos personales (`profiles`, `preferences`, `user_nutrient_targets`) son visibles solo para su dueño; las tablas de referencia compartidas (`ingredients`, `ingredient_nutrients`, `recipes`, `recipe_ingredients`) son de lectura para cualquier usuario autenticado, y de escritura solo para el dueño de la fila (o vía `service_role` para los imports).
 
+RLS por sí solo no alcanza: Postgres chequea privilegios a nivel de tabla *antes* de evaluar RLS, así que sin `GRANT` explícito da "permission denied" sin importar la política. Los proyectos nuevos de Supabase pueden auto-otorgar esto ("Automatically expose new tables" en el dashboard), pero Supabase mismo recomienda desactivarlo — por eso [`migrations/20260921161544_grant_table_privileges.sql`](migrations/20260921161544_grant_table_privileges.sql) otorga explícitamente los privilegios al rol `authenticated` (nada para `anon`: todo requiere login). Verificado en local contra la API REST real (no solo como superusuario): con `auto_expose_new_tables = false`, `anon` da 401, `authenticated` puede leer `ingredients` pero no escribirla (403), y puede escribir su propio `profiles`/`preferences`.
+
+**Al crear el proyecto cloud, en la sección "Security" de la config inicial (Data API):** dejar "Enable Data API" y "Enable automatic RLS" activados, y **desactivar** "Automatically expose new tables" — coincide con lo que ya está probado acá.
+
 ## Workflow de migraciones
 
 ```
