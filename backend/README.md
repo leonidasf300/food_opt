@@ -23,4 +23,5 @@ Implementado: función objetivo ponderada (costo / variedad / tiempo de preparac
 Pendiente (ver [`especificaciones/03-tasks.md`](../especificaciones/03-tasks.md)):
 - Normalizar los tres objetivos antes de combinarlos (hoy se suman en escalas distintas: $, minutos, conteo de recetas).
 - Redondeo a unidades de compra comercial y agregación de lista de compras semanal (requiere que la capa de datos exponga la relación receta → ingredientes).
-- Restricciones semanales (hoy solo hay restricciones diarias).
+
+Nota: las restricciones son solo diarias por decisión de equipo (no se permite compensar un día bajo con uno alto) — no es un gap pendiente, ver [`especificaciones/00-constitution.md`](../especificaciones/00-constitution.md).

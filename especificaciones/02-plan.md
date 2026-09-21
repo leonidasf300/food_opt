@@ -10,6 +10,6 @@ The system utilizes a multi-objective optimization model combining:
 * User-defined weighting using adjustable sliders that total 100% across objectives.
 
 ## Constraints
-* **Nutritional Requirements:** Must meet daily and weekly micro and macronutrient targets.
+* **Nutritional Requirements:** Must meet micro and macronutrient targets **per day** (decisión de equipo: sin restricción agregada semanal — cada día se valida individualmente, no se permite compensar un día bajo con uno alto; ver [00-constitution.md](00-constitution.md)).
 * **Portion Scaling & Rounding:** Quantities are rounded to standard commercial purchasing units.
 * **Shopping Aggregation:** Ingredient quantities across multiple recipes are aggregated to generate precise weekly shopping totals.

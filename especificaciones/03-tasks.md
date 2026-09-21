@@ -17,8 +17,7 @@
 ## Backend de optimización
 - [x] Setup del proyecto Python con Pyomo + HiGHS (ver [00-constitution.md](00-constitution.md)) — `backend/`.
 - [x] Implementar función objetivo multi-criterio (costo, variedad, tiempo) — `backend/food_opt/model.py`.
-- [x] Implementar restricciones nutricionales diarias (macro/micro).
-- [ ] Extender restricciones nutricionales a horizonte semanal (hoy solo diarias).
+- [x] Implementar restricciones nutricionales diarias (macro/micro). Decisión: sin horizonte semanal, ver [00-constitution.md](00-constitution.md).
 - [ ] Normalizar los tres objetivos antes de combinarlos (hoy se suman en escalas distintas: $, minutos, conteo).
 - [ ] Implementar redondeo a unidades de compra comercial.
 - [ ] Implementar agregación de lista de compras semanal (requiere receta → ingredientes desde la capa de datos).

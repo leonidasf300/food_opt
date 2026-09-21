@@ -14,3 +14,4 @@
 - **Backend de optimización:** Python + [Pyomo](http://www.pyomo.org/) como modelador, resuelto con **HiGHS** (solver LP/MIP libre, licencia MIT).
 - **Proceso/CI:** sin linters, CI ni revisión obligatoria de PRs por ahora; se define cuando el volumen de código lo justifique. Se commitea directo a `main`.
 - **Datos nutricionales:** base inicial importada como *snapshot* (no consultada en vivo) desde **USDA FoodData Central**, completada con APIs comerciales (Edamam/Nutritionix) para productos de marca faltantes, y curación manual para huecos restantes. Ver tarea de importación en [03-tasks.md](03-tasks.md).
+- **Horizonte de restricciones nutricionales:** solo diario, sin restricción agregada semanal (no se permite compensar un día bajo con uno alto). Ver [02-plan.md](02-plan.md).
