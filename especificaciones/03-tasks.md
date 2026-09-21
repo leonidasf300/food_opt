@@ -18,12 +18,12 @@
 - [x] Setup del proyecto Python con Pyomo + HiGHS (ver [00-constitution.md](00-constitution.md)) — `backend/`.
 - [x] Implementar función objetivo multi-criterio (costo, variedad, tiempo) — `backend/food_opt/model.py`.
 - [x] Implementar restricciones nutricionales diarias (macro/micro). Decisión: sin horizonte semanal, ver [00-constitution.md](00-constitution.md).
-- [ ] Normalizar los tres objetivos antes de combinarlos (hoy se suman en escalas distintas: $, minutos, conteo).
+- [x] Normalizar los tres objetivos antes de combinarlos — método de tabla de pagos (payoff table / Marler & Arora), `backend/food_opt/model.py`.
 - [ ] Implementar redondeo a unidades de compra comercial.
 - [ ] Implementar agregación de lista de compras semanal (requiere receta → ingredientes desde la capa de datos).
 
 ## Testing (según 04-validate.md)
-- [x] Unit tests del modelo: cumplimiento de restricciones nutricionales, indicador de variedad, sensibilidad al peso de costo — `backend/tests/test_model.py`.
+- [x] Unit tests del modelo: cumplimiento de restricciones nutricionales, indicador de variedad, sensibilidad al peso de costo, consistencia y acotamiento de la normalización — `backend/tests/test_model.py`.
 - [ ] Unit tests: lógica de redondeo (pendiente de implementar el redondeo mismo).
 - [ ] Integration tests: Supabase ↔ backend de optimización.
 - [ ] E2E tests: flujo completo preferencias → plan de comidas → lista de compras.

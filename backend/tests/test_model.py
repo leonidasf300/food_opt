@@ -65,3 +65,37 @@ def test_higher_cost_weight_favors_cheaper_solution():
     salmon_servings = sum(pyo.value(model.x["salmon_salad", d]) for d in model.DAYS)
     assert salmon_servings == 0
     assert total_cost > 0
+
+
+def test_objective_bounds_are_internally_consistent():
+    weights = Weights(cost=0.34, variety=0.33, prep_time=0.33)
+    model = build_model(RECIPES, num_days=3, nutrient_targets=TARGETS, weights=weights)
+    bounds = model.objective_bounds
+
+    # cost/prep_time are minimized: nadir (worst, from the other objectives' optima)
+    # can never be better than ideal (best achievable for that objective alone).
+    assert bounds["cost"].nadir >= bounds["cost"].ideal
+    assert bounds["prep_time"].nadir >= bounds["prep_time"].ideal
+    # variety is maximized: nadir (worst) can never exceed ideal (best achievable).
+    assert bounds["variety"].nadir <= bounds["variety"].ideal
+
+
+def test_normalized_objective_value_is_bounded():
+    weights = Weights(cost=0.34, variety=0.33, prep_time=0.33)
+    model = build_model(RECIPES, num_days=3, nutrient_targets=TARGETS, weights=weights)
+    solve(model)
+
+    # Each normalized term is designed to land roughly in [0, 1]; with weights summing
+    # to 1 the combined objective should too, regardless of the raw $/minutes/count scales.
+    assert -0.01 <= pyo.value(model.objective) <= 1.01
+
+
+def test_degenerate_single_recipe_does_not_divide_by_zero():
+    single_recipe = [Recipe(name="only_option", cost=2.0, prep_time_minutes=10, nutrients={"calories": 500})]
+    targets = {"calories": NutrientTarget(minimum=500, maximum=500)}
+    weights = Weights(cost=0.5, variety=0.25, prep_time=0.25)
+
+    model = build_model(single_recipe, num_days=1, nutrient_targets=targets, weights=weights)
+    result = solve(model)
+
+    assert str(result.solver.termination_condition) == "optimal"

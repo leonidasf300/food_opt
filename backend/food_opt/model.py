@@ -5,6 +5,13 @@ especificaciones/02-plan.md: a weighted combination of cost, variety
 and preparation time, subject to per-day nutrient targets. Solved
 with Pyomo + HiGHS (see especificaciones/00-constitution.md).
 
+Cost ($), prep time (minutes) and variety (recipe count) live on
+different scales, so they're normalized with the payoff-table method
+(Marler & Arora, 2010) before being combined: each objective is
+solved on its own first to find its ideal value (best possible) and
+its nadir value (worst value it takes at the other objectives'
+optima), then scaled to roughly [0, 1] before weighting.
+
 Scope of this first pass: recipe selection/servings per day and the
 weighted objective + nutrient constraints only. Shopping-list
 aggregation and rounding to commercial purchasing units (also
@@ -51,20 +58,21 @@ class Weights:
             raise ValueError("weights must be non-negative")
 
 
-def build_model(
+@dataclass(frozen=True)
+class ObjectiveBounds:
+    """Ideal (best possible) and nadir (worst-at-other-optima) value for one objective."""
+
+    ideal: float
+    nadir: float
+
+
+def _base_model(
     recipes: list[Recipe],
     num_days: int,
     nutrient_targets: dict[str, NutrientTarget],
-    weights: Weights,
-    max_servings_per_recipe_per_day: int = 3,
-) -> pyo.ConcreteModel:
-    """Build the Pyomo model for a given planning horizon.
-
-    NOTE: cost ($), prep time (minutes) and variety (recipe count) are
-    combined as a raw weighted sum despite living on different scales.
-    Proper normalization is a known follow-up, not yet implemented
-    (see especificaciones/03-tasks.md).
-    """
+    max_servings_per_recipe_per_day: int,
+) -> tuple[pyo.ConcreteModel, dict[str, Recipe]]:
+    """Sets, variables and constraints shared by every single- or multi-objective solve."""
     m = pyo.ConcreteModel()
 
     m.RECIPES = pyo.Set(initialize=[r.name for r in recipes])
@@ -94,17 +102,93 @@ def build_model(
 
     m.nutrient_bounds = pyo.Constraint(m.NUTRIENTS, m.DAYS, rule=_nutrient_bounds)
 
-    def _objective(m):
-        total_cost = sum(recipe_by_name[r].cost * m.x[r, d] for r in m.RECIPES for d in m.DAYS)
-        total_prep_time = sum(recipe_by_name[r].prep_time_minutes * m.x[r, d] for r in m.RECIPES for d in m.DAYS)
-        total_variety = sum(m.y[r] for r in m.RECIPES)
-        return weights.cost * total_cost + weights.prep_time * total_prep_time - weights.variety * total_variety
+    return m, recipe_by_name
 
-    m.objective = pyo.Objective(rule=_objective, sense=pyo.minimize)
 
-    return m
+def _total_cost_expr(m: pyo.ConcreteModel, recipe_by_name: dict[str, Recipe]):
+    return sum(recipe_by_name[r].cost * m.x[r, d] for r in m.RECIPES for d in m.DAYS)
+
+
+def _total_prep_time_expr(m: pyo.ConcreteModel, recipe_by_name: dict[str, Recipe]):
+    return sum(recipe_by_name[r].prep_time_minutes * m.x[r, d] for r in m.RECIPES for d in m.DAYS)
+
+
+def _total_variety_expr(m: pyo.ConcreteModel):
+    return sum(m.y[r] for r in m.RECIPES)
 
 
 def solve(model: pyo.ConcreteModel) -> pyo.SolverResults:
     solver = pyo.SolverFactory("appsi_highs")
     return solver.solve(model)
+
+
+def _payoff_table(
+    recipes: list[Recipe],
+    num_days: int,
+    nutrient_targets: dict[str, NutrientTarget],
+    max_servings_per_recipe_per_day: int,
+) -> dict[str, ObjectiveBounds]:
+    """Solve each objective alone to build the ideal/nadir bounds used to normalize them."""
+    rows = []
+    for key, sense in [("cost", pyo.minimize), ("prep_time", pyo.minimize), ("variety", pyo.maximize)]:
+        m, recipe_by_name = _base_model(recipes, num_days, nutrient_targets, max_servings_per_recipe_per_day)
+        expr = {
+            "cost": _total_cost_expr(m, recipe_by_name),
+            "prep_time": _total_prep_time_expr(m, recipe_by_name),
+            "variety": _total_variety_expr(m),
+        }[key]
+        m.objective = pyo.Objective(expr=expr, sense=sense)
+        result = solve(m)
+        if str(result.solver.termination_condition) != "optimal":
+            raise RuntimeError(f"payoff-table sub-problem for '{key}' did not solve to optimality")
+        rows.append(
+            {
+                "cost": pyo.value(_total_cost_expr(m, recipe_by_name)),
+                "prep_time": pyo.value(_total_prep_time_expr(m, recipe_by_name)),
+                "variety": pyo.value(_total_variety_expr(m)),
+            }
+        )
+    cost_row, time_row, variety_row = rows
+    return {
+        "cost": ObjectiveBounds(ideal=cost_row["cost"], nadir=max(time_row["cost"], variety_row["cost"])),
+        "prep_time": ObjectiveBounds(
+            ideal=time_row["prep_time"], nadir=max(cost_row["prep_time"], variety_row["prep_time"])
+        ),
+        "variety": ObjectiveBounds(
+            ideal=variety_row["variety"], nadir=min(cost_row["variety"], time_row["variety"])
+        ),
+    }
+
+
+def _normalized(expr, bounds: ObjectiveBounds, maximize: bool = False):
+    span = bounds.nadir - bounds.ideal
+    if abs(span) < 1e-9:
+        # Objective doesn't vary across the individual optima (e.g. only one feasible
+        # solution) -- it can't discriminate between plans, so it drops out of the sum.
+        return 0
+    if maximize:
+        return (bounds.nadir - expr) / span
+    return (expr - bounds.ideal) / span
+
+
+def build_model(
+    recipes: list[Recipe],
+    num_days: int,
+    nutrient_targets: dict[str, NutrientTarget],
+    weights: Weights,
+    max_servings_per_recipe_per_day: int = 3,
+) -> pyo.ConcreteModel:
+    """Build the Pyomo model for a given planning horizon, with normalized objectives."""
+    bounds = _payoff_table(recipes, num_days, nutrient_targets, max_servings_per_recipe_per_day)
+    m, recipe_by_name = _base_model(recipes, num_days, nutrient_targets, max_servings_per_recipe_per_day)
+
+    def _objective(m):
+        cost_n = _normalized(_total_cost_expr(m, recipe_by_name), bounds["cost"])
+        time_n = _normalized(_total_prep_time_expr(m, recipe_by_name), bounds["prep_time"])
+        variety_n = _normalized(_total_variety_expr(m), bounds["variety"], maximize=True)
+        return weights.cost * cost_n + weights.prep_time * time_n + weights.variety * variety_n
+
+    m.objective = pyo.Objective(rule=_objective, sense=pyo.minimize)
+    m.objective_bounds = bounds  # exposed for tests/debugging, not part of the Pyomo model
+
+    return m
