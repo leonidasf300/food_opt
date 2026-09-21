@@ -12,7 +12,7 @@
 - [x] Esquema: usuarios, preferencias, recetas, ingredientes, valores nutricionales — `supabase/migrations/20260921140828_create_core_schema.sql`. Verificado corriendo local (Docker), ver `supabase/README.md`.
 - [x] Políticas de acceso (RLS) para datos de usuario — mismo archivo de migración.
 - [ ] Crear proyecto Supabase cloud real y hacer `supabase db push` cuando el equipo esté listo.
-- [ ] Importar snapshot inicial de USDA FoodData Central a Supabase.
+- [ ] Importar snapshot inicial de USDA FoodData Central a Supabase. Script listo y probado (`supabase/scripts/import_usda.py`, lógica de upsert/idempotencia verificada contra local) — falta correrlo de verdad, bloqueado por conseguir una API key personal de USDA (el `DEMO_KEY` compartido se agota casi al instante). Ver `supabase/scripts/README.md`.
 - [ ] Evaluar APIs comerciales (Edamam/Nutritionix) para cubrir productos de marca faltantes en el snapshot de USDA.
 - [ ] Definir proceso de curación manual para huecos restantes (ingredientes sin match en ninguna fuente).
 

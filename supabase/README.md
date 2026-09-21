@@ -8,7 +8,7 @@ Supabase es Postgres + Auth + una API REST/GraphQL autogenerada + RLS. **Local y
 
 1. Se desarrolla y prueba el esquema en **local** (`supabase start`, corre todo en Docker).
 2. Cuando está estable, se lo aplica al proyecto **cloud** (`supabase link` + `supabase db push`) — no existe todavía, se crea en supabase.com cuando estemos listos.
-3. Los **datos** (snapshot de USDA, etc.) no viajan con las migraciones: son scripts de import aparte que se corren contra el destino que se elija (local primero para probar, cloud después), usando la `service_role` key porque las tablas de referencia son de solo lectura para clientes normales (ver políticas RLS en la migración).
+3. Los **datos** (snapshot de USDA, etc.) no viajan con las migraciones: son scripts de import aparte que se corren contra el destino que se elija (local primero para probar, cloud después) — ver [`scripts/README.md`](scripts/README.md). Corren con conexión directa a Postgres (no vía la API REST), así que las políticas RLS de solo-lectura sobre `ingredients`/`ingredient_nutrients` no les aplican.
 
 ## Setup local
 
@@ -35,7 +35,7 @@ Definido en [`migrations/20260921140828_create_core_schema.sql`](migrations/2026
 | `profiles` | Extiende `auth.users` con datos del perfil |
 | `preferences` | Pesos del slider (costo/variedad/tiempo, enteros que deben sumar 100) |
 | `user_nutrient_targets` | Objetivos min/max por nutriente y usuario |
-| `ingredients` | Nombre, fuente (usda/commercial_api/manual), unidad de compra comercial y precio |
+| `ingredients` | Nombre, fuente (usda/commercial_api/manual). Unidad de compra comercial y precio son nullable: llegan en una fase posterior (API comercial o curación manual), no junto con el dato nutricional de USDA |
 | `ingredient_nutrients` | Nutrientes por cada 100 unidades base de un ingrediente |
 | `recipes` | Nombre, tiempo de preparación, dueño (null = receta global) |
 | `recipe_ingredients` | Relación receta → ingredientes con cantidad — habilita agregación de lista de compras trazable |
@@ -49,6 +49,10 @@ npx supabase migration new <nombre>   # crea un .sql vacío en supabase/migratio
 npx supabase db reset                 # reaplica todas las migraciones + seed desde cero (local)
 ```
 
+## Import de datos
+
+Ver [`scripts/README.md`](scripts/README.md) — script de import de USDA FoodData Central (`scripts/import_usda.py`), separado de las migraciones porque mueve datos, no esquema.
+
 ## Pendiente
 
-Ver [`especificaciones/03-tasks.md`](../especificaciones/03-tasks.md): import del snapshot de USDA FoodData Central, evaluación de APIs comerciales, y creación del proyecto cloud real cuando el equipo esté listo para eso.
+Ver [`especificaciones/03-tasks.md`](../especificaciones/03-tasks.md): correr el import de USDA de verdad (falta API key personal), evaluación de APIs comerciales, y creación del proyecto cloud real cuando el equipo esté listo para eso.

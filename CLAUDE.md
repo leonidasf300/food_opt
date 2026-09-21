@@ -43,6 +43,17 @@ npx supabase db reset           # reapply all migrations + seed from scratch, lo
 
 Local ports are shifted to 58320-58329 (not the CLI's 54320-54329 default) — Windows dynamically reserves 54318-54417 for Hyper-V/WSL, which breaks binding in that range with a permissions error, not a port-in-use error. See `supabase/README.md` if this needs revisiting on another machine.
 
+Data import scripts (`supabase/scripts/`) are separate from migrations — they move rows, not schema — and have their own venv:
+
+```
+cd supabase/scripts
+python -m venv .venv
+.venv/Scripts/activate
+pip install -r requirements.txt
+
+USDA_API_KEY=... python import_usda.py   # needs a personal key: https://api.data.gov/signup/?key (DEMO_KEY's rate limit is unusably low)
+```
+
 ### Frontend (`frontend/`)
 
 ```
@@ -63,7 +74,7 @@ npm run test                       # vitest
 Planned as an AI-assisted nutrition and grocery management platform with three pieces (per `especificaciones/01-specify.md`):
 
 - **Frontend** (`frontend/`, Next.js App Router + TypeScript + Tailwind, not yet deployed to Vercel): `src/app/preferences/page.tsx` is the profile/preferences screen with sliders weighting the multi-objective optimization (cost, variety, prep time). Moving one slider redistributes the other two proportionally (`src/lib/preferences.ts::redistributeWeights`, unit-tested) so the three always sum to exactly 100 — matching the DB's `weights_sum_to_100` constraint by construction, not by validation after the fact. Auth is magic-link email (`supabase.auth.signInWithOtp`); the Supabase client lives in `src/lib/supabase/client.ts`. Not yet verified interactively in a real browser (only build/lint/test/HTTP-smoke-tested) — do that before trusting the UI works end-to-end.
-- **Data layer** (`supabase/`, Postgres via Supabase): schema for profiles/preferences/nutrient targets/ingredients/recipes, RLS enabled on every table (see `supabase/README.md` for the table-by-table breakdown and access rules). No cloud project exists yet — schema is only verified against local Docker so far. Nutrition data will be sourced from a USDA FoodData Central snapshot, supplemented by commercial APIs and manual curation (see `especificaciones/00-constitution.md`); the import script itself isn't written yet.
+- **Data layer** (`supabase/`, Postgres via Supabase): schema for profiles/preferences/nutrient targets/ingredients/recipes, RLS enabled on every table (see `supabase/README.md` for the table-by-table breakdown and access rules). No cloud project exists yet — schema is only verified against local Docker so far. `ingredients.purchase_unit_label/size/price` are nullable by design: USDA-sourced rows land with nutrient data only, pricing arrives later from a commercial API or manual curation (see `especificaciones/00-constitution.md`). `supabase/scripts/import_usda.py` does the USDA import — upsert logic (idempotent on `source`+`external_id`) is verified against local Postgres, but the actual run against USDA's API is blocked on getting a personal API key (see `supabase/scripts/README.md`).
 - **Optimization backend** (`backend/`, Python + Pyomo + HiGHS): solves a weighted multi-objective model — minimize cost, minimize prep time, maximize recipe variety — subject to per-day nutrient constraints.
   - `backend/food_opt/model.py` — `Recipe`, `NutrientTarget`, `Weights` (validates weights sum to 1.0) dataclasses; `build_model()` constructs the Pyomo `ConcreteModel`; `solve()` runs it through the `appsi_highs` solver interface.
   - Recipe selection is modeled as `x[recipe, day]` (integer servings, bounded) plus a `y[recipe]` binary variety indicator, linked to actual usage via two constraints (`usage_upper_bound`, `usage_lower_bound`) rather than a naive count — this avoids the solver getting "free" variety credit for unused recipes.
