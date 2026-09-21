@@ -1,5 +1,7 @@
 # System Specification: AI-Assisted Nutrition and Grocery Management System
 
+> **Fase SDD: Specify** — Define el *qué* y el *por qué* del sistema: alcance, módulos funcionales y el problema que resuelve, sin entrar todavía en decisiones técnicas de implementación. Es la base sobre la que se construyen las fases `Plan` ([02-plan.md](02-plan.md)) y `Validate` ([03-validate.md](03-validate.md)).
+
 ## Overview
 This document specifies the architecture and functional requirements for the AI-assisted nutrition and grocery management platform.
 

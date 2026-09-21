@@ -1,5 +1,7 @@
 # Optimization Model Specification: Meal Planning
 
+> **Fase SDD: Plan** — Define el *cómo*: traduce los requisitos funcionales de `Specify` ([01-specify.md](01-specify.md)) en el diseño técnico del modelo de optimización (función objetivo, restricciones, reglas de negocio). Sirve de contrato técnico para la implementación y para los criterios de `Validate` ([03-validate.md](03-validate.md)).
+
 ## Objective Function
 The system utilizes a multi-objective optimization model combining:
 * Minimization of total ingredient cost.

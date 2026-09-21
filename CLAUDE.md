@@ -6,10 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repository currently contains only specification documents — no source code, package manifests, or build tooling exist yet. There are no build/lint/test commands to run because nothing has been scaffolded. When code is added, this file should be updated with the actual commands (e.g. `npm run build`, `pytest`, etc.) and verified architecture.
 
-The specs live at the repo root:
-- `gemini-code-1789993085646.md` — system overview
-- `gemini-code-1789993096592.md` — optimization model spec
-- `gemini-code-1789993101419.md` — verification/testing plan
+Specs are organized under `especificaciones/` following the **SDD (Spec-Driven Development)** methodology — see [`especificaciones/README.md`](especificaciones/README.md) for the phase breakdown:
+- `especificaciones/01-specify.md` — Specify phase: system overview and functional modules
+- `especificaciones/02-plan.md` — Plan phase: optimization model technical design
+- `especificaciones/03-validate.md` — Validate phase: verification/testing plan
+
+When adding new specs or docs, place them in `especificaciones/` and note which SDD phase they belong to.
 
 ## Intended architecture (per specs, not yet implemented)
 
