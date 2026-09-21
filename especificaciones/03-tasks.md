@@ -8,8 +8,9 @@
 - [ ] Integración con Supabase (auth + queries) desde el frontend.
 
 ## Data layer (Supabase)
-- [ ] Esquema: usuarios, preferencias, recetas, ingredientes, valores nutricionales.
-- [ ] Políticas de acceso (RLS) para datos de usuario.
+- [x] Esquema: usuarios, preferencias, recetas, ingredientes, valores nutricionales — `supabase/migrations/20260921140828_create_core_schema.sql`. Verificado corriendo local (Docker), ver `supabase/README.md`.
+- [x] Políticas de acceso (RLS) para datos de usuario — mismo archivo de migración.
+- [ ] Crear proyecto Supabase cloud real y hacer `supabase db push` cuando el equipo esté listo.
 - [ ] Importar snapshot inicial de USDA FoodData Central a Supabase.
 - [ ] Evaluar APIs comerciales (Edamam/Nutritionix) para cubrir productos de marca faltantes en el snapshot de USDA.
 - [ ] Definir proceso de curación manual para huecos restantes (ingredientes sin match en ninguna fuente).
