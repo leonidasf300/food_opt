@@ -7,8 +7,12 @@ Ver [`especificaciones/00-constitution.md`](../especificaciones/00-constitution.
 Supabase es Postgres + Auth + una API REST/GraphQL autogenerada + RLS. **Local y cloud son el mismo Supabase corriendo en dos lados distintos**, y el puente entre ambos son las **migraciones** (`supabase/migrations/*.sql`), no los datos:
 
 1. Se desarrolla y prueba el esquema en **local** (`supabase start`, corre todo en Docker).
-2. Cuando está estable, se lo aplica al proyecto **cloud** (`supabase link` + `supabase db push`) — no existe todavía, se crea en supabase.com cuando estemos listos.
+2. Cuando está estable, se lo aplica al proyecto **cloud** (`supabase link` + `supabase db push`).
 3. Los **datos** (snapshot de USDA, etc.) no viajan con las migraciones: son scripts de import aparte que se corren contra el destino que se elija (local primero para probar, cloud después) — ver [`scripts/README.md`](scripts/README.md). Corren con conexión directa a Postgres (no vía la API REST), así que las políticas RLS de solo-lectura sobre `ingredients`/`ingredient_nutrients` no les aplican.
+
+### Proyecto cloud
+
+Ya existe: `food-opt`, ref `fufzybvwbdgejnozrgoa`, región `us-east-1`. Las 4 migraciones están aplicadas y verificadas (`anon` da 401 contra la API REST real, igual que en local). Comandos que necesitan el link (`db push`, `migration list`, etc.) requieren `SUPABASE_ACCESS_TOKEN` (un [access token de cuenta](https://supabase.com/dashboard/account/tokens), no se commitea) y la contraseña de la base — pedírselos a quien los tenga, no están en el repo.
 
 ## Setup local
 
@@ -59,4 +63,4 @@ Ver [`scripts/README.md`](scripts/README.md) — script de import de USDA FoodDa
 
 ## Pendiente
 
-Ver [`especificaciones/03-tasks.md`](../especificaciones/03-tasks.md): correr el import de USDA de verdad (falta API key personal), evaluación de APIs comerciales, y creación del proyecto cloud real cuando el equipo esté listo para eso.
+Ver [`especificaciones/03-tasks.md`](../especificaciones/03-tasks.md): correr el import de USDA contra el proyecto cloud (por ahora solo está en local), evaluación de APIs comerciales, definición de mercado/fuente de precios.

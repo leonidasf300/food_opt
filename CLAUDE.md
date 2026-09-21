@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-The `backend/` optimization module, the `supabase/` data layer schema, and the `frontend/` Next.js app have all been scaffolded and are under active development. There is no Supabase cloud project yet — only local dev via Docker (see `supabase/README.md`).
+The `backend/` optimization module, the `supabase/` data layer schema, and the `frontend/` Next.js app have all been scaffolded and are under active development. The Supabase cloud project (`food-opt`, ref `fufzybvwbdgejnozrgoa`) exists and has the schema pushed (see `supabase/README.md`); the USDA ingredient import has only been run against local so far, not cloud.
 
 Specs live under `especificaciones/` following the **SDD (Spec-Driven Development)** methodology — see [`especificaciones/README.md`](especificaciones/README.md) for the full phase breakdown and [`especificaciones/03-tasks.md`](especificaciones/03-tasks.md) for what's done vs. pending:
 - `especificaciones/00-constitution.md` — Constitution: non-negotiable project principles and resolved technical decisions (backend stack, data source, process)
@@ -43,6 +43,13 @@ npx supabase db reset           # reapply all migrations + seed from scratch, lo
 
 Local ports are shifted to 58320-58329 (not the CLI's 54320-54329 default) — Windows dynamically reserves 54318-54417 for Hyper-V/WSL, which breaks binding in that range with a permissions error, not a port-in-use error. See `supabase/README.md` if this needs revisiting on another machine.
 
+Cloud project is linked (`supabase/.temp/project-ref`). Commands that touch it need `SUPABASE_ACCESS_TOKEN` (personal token, not stored in the repo) and the DB password:
+
+```
+SUPABASE_ACCESS_TOKEN=... npx supabase db push --password '...'
+SUPABASE_ACCESS_TOKEN=... npx supabase migration list --password '...'
+```
+
 Data import scripts (`supabase/scripts/`) are separate from migrations — they move rows, not schema — and have their own venv:
 
 ```
@@ -74,7 +81,7 @@ npm run test                       # vitest
 Planned as an AI-assisted nutrition and grocery management platform with three pieces (per `especificaciones/01-specify.md`):
 
 - **Frontend** (`frontend/`, Next.js App Router + TypeScript + Tailwind, not yet deployed to Vercel): `src/app/preferences/page.tsx` is the profile/preferences screen with sliders weighting the multi-objective optimization (cost, variety, prep time). Moving one slider redistributes the other two proportionally (`src/lib/preferences.ts::redistributeWeights`, unit-tested) so the three always sum to exactly 100 — matching the DB's `weights_sum_to_100` constraint by construction, not by validation after the fact. Auth is magic-link email (`supabase.auth.signInWithOtp`); the Supabase client lives in `src/lib/supabase/client.ts`. Not yet verified interactively in a real browser (only build/lint/test/HTTP-smoke-tested) — do that before trusting the UI works end-to-end.
-- **Data layer** (`supabase/`, Postgres via Supabase): schema for profiles/preferences/nutrient targets/ingredients/recipes, RLS enabled on every table (see `supabase/README.md` for the table-by-table breakdown and access rules). No cloud project exists yet — schema is only verified against local Docker so far, with `auto_expose_new_tables = false` (matches the recommended cloud "Automatically expose new tables: off" setting), which means table access requires *both* RLS policies *and* the explicit `GRANT`s in `migrations/20260921161544_grant_table_privileges.sql` — verified end-to-end through the real Data API (not just as the Postgres superuser): `anon` gets 401, `authenticated` can read `ingredients` but not write it (403), and can read/write its own `profiles`/`preferences`. `ingredients.purchase_unit_label/size/price` are nullable by design: USDA-sourced rows land with nutrient data only, pricing arrives later from a commercial API or manual curation (see `especificaciones/00-constitution.md`). `supabase/scripts/import_usda.py` has been run for real against local: 15/15 seed ingredients imported, fetched by pinned `fdcId` (not free-text search, which picked wrong foods for 2 of them the first time).
+- **Data layer** (`supabase/`, Postgres via Supabase): schema for profiles/preferences/nutrient targets/ingredients/recipes, RLS enabled on every table (see `supabase/README.md` for the table-by-table breakdown and access rules). Cloud project `food-opt` (ref `fufzybvwbdgejnozrgoa`) exists with all 4 migrations pushed. Table access requires *both* RLS policies *and* the explicit `GRANT`s in `migrations/20260921161544_grant_table_privileges.sql` — RLS alone doesn't expose a table to the Data API. Verified end-to-end through the real Data API on both local and cloud (not just as the Postgres superuser): `anon` gets 401, `authenticated` can read `ingredients` but not write it (403), and can read/write its own `profiles`/`preferences`. `ingredients.purchase_unit_label/size/price` are nullable by design: USDA-sourced rows land with nutrient data only, pricing arrives later from a commercial API or manual curation (see `especificaciones/00-constitution.md`). `supabase/scripts/import_usda.py` has been run for real against **local only** so far: 15/15 seed ingredients imported, fetched by pinned `fdcId` (not free-text search, which picked wrong foods for 2 of them the first time) — cloud has the schema but no ingredient rows yet.
 - **Optimization backend** (`backend/`, Python + Pyomo + HiGHS): solves a weighted multi-objective model — minimize cost, minimize prep time, maximize recipe variety — subject to per-day nutrient constraints.
   - `backend/food_opt/model.py` — `Recipe`, `NutrientTarget`, `Weights` (validates weights sum to 1.0) dataclasses; `build_model()` constructs the Pyomo `ConcreteModel`; `solve()` runs it through the `appsi_highs` solver interface.
   - Recipe selection is modeled as `x[recipe, day]` (integer servings, bounded) plus a `y[recipe]` binary variety indicator, linked to actual usage via two constraints (`usage_upper_bound`, `usage_lower_bound`) rather than a naive count — this avoids the solver getting "free" variety credit for unused recipes.
