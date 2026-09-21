@@ -179,6 +179,9 @@ export default function TargetsPage() {
         <Link href="/preferences" className="underline">
           ← Preferencias
         </Link>
+        <Link href="/recipes" className="underline">
+          Recetas →
+        </Link>
         <Link href="/plan" className="underline">
           Generar plan →
         </Link>

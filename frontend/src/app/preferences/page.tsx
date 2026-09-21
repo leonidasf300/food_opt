@@ -163,6 +163,9 @@ export default function PreferencesPage() {
         <Link href="/targets" className="underline">
           Objetivos nutricionales →
         </Link>
+        <Link href="/recipes" className="underline">
+          Recetas →
+        </Link>
         <Link href="/plan" className="underline">
           Generar plan →
         </Link>

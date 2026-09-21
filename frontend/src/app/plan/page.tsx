@@ -195,6 +195,9 @@ export default function PlanPage() {
         <Link href="/targets" className="underline">
           ← Objetivos
         </Link>
+        <Link href="/recipes" className="underline">
+          ← Recetas
+        </Link>
       </div>
     </main>
   );

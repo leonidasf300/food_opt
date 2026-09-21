@@ -62,7 +62,7 @@ Correr **después** de `import_usda.py` (necesita que los ingredientes ya exista
 
 ## `import_recipes.py`
 
-Importa las recetas de prueba de [`seed_recipes.py`](seed_recipes.py) (8 recetas, combinaciones de los 15 ingredientes) y después imprime el costo/nutrientes agregados de cada una para poder verificarlos a mano contra la vista `recipe_totals`. Correr después de `import_usda.py` y `set_placeholder_prices.py`.
+Importa las recetas base de [`seed_recipes.py`](seed_recipes.py) (23 recetas, combinaciones de los 15 ingredientes — suficiente variedad para ~4 semanas de planes sin repetir demasiado) y después imprime el costo/nutrientes agregados de cada una para poder verificarlos a mano contra la vista `recipe_totals`. Correr después de `import_usda.py` y `set_placeholder_prices.py`. Idempotente (upsert por nombre entre recetas globales), así que correrlo de nuevo tras agregar recetas a `seed_recipes.py` es seguro.
 
 ```
 python import_recipes.py
