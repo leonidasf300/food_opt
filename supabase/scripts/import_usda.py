@@ -11,6 +11,11 @@ import. Purchase-unit label/size/price are intentionally left null: USDA has
 no commercial pricing data, that's filled in later by a commercial API or
 manual curation (see especificaciones/03-tasks.md).
 
+Fetches each ingredient by its pinned fdcId (see seed_ingredients.py), not by
+free-text search: FDC's relevance ranking isn't reproducible enough to trust
+unattended (a "sweet potato, raw" query matched "Sweet Potato puffs, frozen"
+ahead of the actual raw entry, for example).
+
 Usage:
     Put USDA_API_KEY=... (and optionally SUPABASE_DB_URL=...) in a .env file next
     to this script (see .env.example), or export them in the shell:
@@ -31,7 +36,7 @@ from seed_ingredients import SEED_INGREDIENTS
 
 load_dotenv()
 
-FDC_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
+FDC_FOOD_URL = "https://api.nal.usda.gov/fdc/v1/food/{fdc_id}"
 DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:58322/postgres"
 
 # nutrient_key -> USDA nutrient ids to try, in priority order (first match wins).
@@ -47,24 +52,18 @@ NUTRIENT_MAP: dict[str, list[int]] = {
 REQUEST_DELAY_SECONDS = 1.0  # be polite to a shared public API
 
 
-def search_food(query: str, api_key: str) -> dict | None:
-    response = requests.get(
-        FDC_SEARCH_URL,
-        params={
-            "query": query,
-            "dataType": "Foundation,SR Legacy",
-            "pageSize": 1,
-            "api_key": api_key,
-        },
-        timeout=15,
-    )
+def get_food(fdc_id: int, api_key: str) -> dict:
+    response = requests.get(FDC_FOOD_URL.format(fdc_id=fdc_id), params={"api_key": api_key}, timeout=15)
     response.raise_for_status()
-    foods = response.json().get("foods", [])
-    return foods[0] if foods else None
+    return response.json()
 
 
 def extract_nutrients(food: dict) -> dict[str, float]:
-    by_id = {n["nutrientId"]: n["value"] for n in food.get("foodNutrients", []) if "value" in n}
+    by_id = {
+        n["nutrient"]["id"]: n["amount"]
+        for n in food.get("foodNutrients", [])
+        if "amount" in n and "nutrient" in n
+    }
     result = {}
     for key, candidate_ids in NUTRIENT_MAP.items():
         for nutrient_id in candidate_ids:
@@ -113,24 +112,20 @@ def main() -> int:
 
     imported, skipped = 0, []
     with psycopg.connect(db_url, autocommit=True) as conn:
-        for name, query in SEED_INGREDIENTS:
-            food = search_food(query, api_key)
-            if food is None:
-                skipped.append((name, "no match in Foundation/SR Legacy"))
-                time.sleep(REQUEST_DELAY_SECONDS)
-                continue
+        for name, fdc_id in SEED_INGREDIENTS:
+            food = get_food(fdc_id, api_key)
 
             nutrients = extract_nutrients(food)
             missing = set(NUTRIENT_MAP) - set(nutrients)
             if missing:
-                skipped.append((name, f"missing nutrients {sorted(missing)} on fdcId={food['fdcId']}"))
+                skipped.append((name, f"missing nutrients {sorted(missing)} on fdcId={fdc_id}"))
                 time.sleep(REQUEST_DELAY_SECONDS)
                 continue
 
-            ingredient_id = upsert_ingredient(conn, name, food["fdcId"])
+            ingredient_id = upsert_ingredient(conn, name, fdc_id)
             upsert_nutrients(conn, ingredient_id, nutrients)
             imported += 1
-            print(f"  {name!r} <- fdcId={food['fdcId']} ({food['description']!r}): {nutrients}")
+            print(f"  {name!r} <- fdcId={fdc_id} ({food['description']!r}): {nutrients}")
             time.sleep(REQUEST_DELAY_SECONDS)
 
     print(f"\nImported {imported}/{len(SEED_INGREDIENTS)} ingredients.")

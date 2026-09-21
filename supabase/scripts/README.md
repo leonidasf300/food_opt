@@ -20,6 +20,8 @@ pip install -r requirements.txt
 
 ### Correr
 
+Poné `USDA_API_KEY=...` en `supabase/scripts/.env` (copiá `.env.example`), o exportala en el shell:
+
 ```
 USDA_API_KEY=tu_key python import_usda.py
 ```
@@ -30,8 +32,10 @@ Es **idempotente**: correrlo de nuevo actualiza los ingredientes existentes (mat
 
 ### Qué importa
 
-La lista inicial está en [`seed_ingredients.py`](seed_ingredients.py) — ~15 ingredientes comunes (proteínas, granos, vegetales, grasas) para tener datos reales con qué construir/probar recetas. No es un catálogo curado, es un punto de partida: extender esa lista según haga falta.
+La lista está en [`seed_ingredients.py`](seed_ingredients.py) — 15 ingredientes comunes (proteínas, granos, vegetales, grasas), cada uno con su `fdcId` de USDA **pinneado explícitamente**, no resuelto por búsqueda de texto en tiempo de import. Motivo: la búsqueda por relevancia de FDC no es confiable para esto — en la primera corrida, "sweet potato, raw" matcheó primero con "Sweet Potato puffs, frozen" y "oats" con "Oil, oat". Para agregar un ingrediente nuevo: buscarlo en https://fdc.nal.usda.gov/food-search, verificar a mano que la descripción es la correcta, y pinnear ese `fdcId`.
+
+No es un catálogo curado, es un punto de partida: extender la lista según haga falta.
 
 ### Estado
 
-Lógica de upsert (idempotencia, mapeo de nutrientes) verificada contra Postgres local con datos de prueba. **La corrida real contra la API de USDA está pendiente** de una API key personal — ver [`especificaciones/03-tasks.md`](../../especificaciones/03-tasks.md).
+**Corrido contra local con una API key personal: 15/15 ingredientes importados y verificados.** Falta correrlo contra un proyecto cloud cuando exista (ver [`especificaciones/03-tasks.md`](../../especificaciones/03-tasks.md)).
