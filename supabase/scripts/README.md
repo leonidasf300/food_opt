@@ -28,6 +28,14 @@ USDA_API_KEY=tu_key python import_usda.py
 
 Por default escribe contra Postgres local (`postgresql://postgres:postgres@127.0.0.1:58322/postgres`, el puerto shifteado — ver `supabase/README.md`). Para apuntar a otro destino: `SUPABASE_DB_URL=postgresql://... USDA_API_KEY=... python import_usda.py`.
 
+**Para apuntar al proyecto cloud, usar el connection pooler, no el host directo:** `db.<ref>.supabase.co` solo resuelve a IPv6 en proyectos nuevos — si tu red no tiene salida IPv6 (común), la conexión falla con "failed to resolve host". El pooler sí resuelve a IPv4:
+
+```
+SUPABASE_DB_URL="postgresql://postgres.<ref>:<db-password>@aws-0-<region>.pooler.supabase.com:6543/postgres" USDA_API_KEY=... python import_usda.py
+```
+
+(`<region>` es la de tu proyecto, ej. `us-east-1`; se ve en Project Settings → Database → Connection string, opción "Transaction pooler").
+
 Es **idempotente**: correrlo de nuevo actualiza los ingredientes existentes (matcheados por `source='usda'` + `external_id`=fdcId) en vez de duplicarlos.
 
 ### Qué importa
@@ -38,4 +46,4 @@ No es un catálogo curado, es un punto de partida: extender la lista según haga
 
 ### Estado
 
-**Corrido contra local con una API key personal: 15/15 ingredientes importados y verificados.** Falta correrlo contra un proyecto cloud cuando exista (ver [`especificaciones/03-tasks.md`](../../especificaciones/03-tasks.md)).
+**Corrido contra local y contra el proyecto cloud real (`food-opt`): 15/15 ingredientes en ambos, verificado vía la API REST autenticada en los dos casos.**
