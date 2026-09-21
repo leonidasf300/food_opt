@@ -3,9 +3,10 @@
 > **Fase SDD: Tasks** — Traduce `Plan` ([02-plan.md](02-plan.md)) en tareas concretas y accionables, listas para pasar a `Implement` (el código, que todavía no existe en este repo) y verificarse en `Validate` ([04-validate.md](04-validate.md)). Es un desglose propuesto, no un compromiso de alcance: se debe revisar y refinar antes de empezar a programar.
 
 ## Frontend (Next.js / React)
-- [ ] Scaffold de la app Next.js.
-- [ ] Pantalla de perfil/preferencias con sliders de ponderación (costo / variedad / tiempo de preparación) que sumen 100%.
-- [ ] Integración con Supabase (auth + queries) desde el frontend.
+- [x] Scaffold de la app Next.js — `frontend/` (TypeScript, App Router, Tailwind).
+- [x] Pantalla de perfil/preferencias con sliders de ponderación (costo / variedad / tiempo de preparación) que sumen 100% — `frontend/src/app/preferences/page.tsx`. Los sliders redistribuyen proporcionalmente para garantizar suma exacta de 100 (`frontend/src/lib/preferences.ts`, con tests).
+- [x] Integración con Supabase (auth + queries) desde el frontend — `frontend/src/lib/supabase/client.ts`; auth por magic link, lee/escribe la tabla `preferences`.
+- [ ] Probar la interacción real en navegador (sliders, magic link, guardado) — validado por build/lint/tests + smoke test HTTP, pero no de forma visual/interactiva (sin extensión de browser conectada en esta sesión).
 
 ## Data layer (Supabase)
 - [x] Esquema: usuarios, preferencias, recetas, ingredientes, valores nutricionales — `supabase/migrations/20260921140828_create_core_schema.sql`. Verificado corriendo local (Docker), ver `supabase/README.md`.
