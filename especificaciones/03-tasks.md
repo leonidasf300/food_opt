@@ -15,6 +15,7 @@
 - [ ] Importar snapshot inicial de USDA FoodData Central a Supabase. Script listo y probado (`supabase/scripts/import_usda.py`, lógica de upsert/idempotencia verificada contra local) — falta correrlo de verdad, bloqueado por conseguir una API key personal de USDA (el `DEMO_KEY` compartido se agota casi al instante). Ver `supabase/scripts/README.md`.
 - [ ] Evaluar APIs comerciales (Edamam/Nutritionix) para cubrir productos de marca faltantes en el snapshot de USDA.
 - [ ] Definir proceso de curación manual para huecos restantes (ingredientes sin match en ninguna fuente).
+- [ ] Definir mercado objetivo (USA / Colombia / ambos) y, según eso, fuente de precios (candidatas: Kroger Developer API para USA — precio real por SKU, solo cadena Kroger; DANE SIPSA para Colombia — precio mayorista agropecuario gratuito, no precio de góndola por SKU). Ver [00-constitution.md](00-constitution.md). Hasta entonces, precio se carga manualmente (`purchase_unit_price` ya es nullable).
 
 ## Backend de optimización
 - [x] Setup del proyecto Python con Pyomo + HiGHS (ver [00-constitution.md](00-constitution.md)) — `backend/`.

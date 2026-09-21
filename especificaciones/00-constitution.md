@@ -15,3 +15,7 @@
 - **Proceso/CI:** sin linters, CI ni revisión obligatoria de PRs por ahora; se define cuando el volumen de código lo justifique. Se commitea directo a `main`.
 - **Datos nutricionales:** base inicial importada como *snapshot* (no consultada en vivo) desde **USDA FoodData Central**, completada con APIs comerciales (Edamam/Nutritionix) para productos de marca faltantes, y curación manual para huecos restantes. Ver tarea de importación en [03-tasks.md](03-tasks.md).
 - **Horizonte de restricciones nutricionales:** solo diario, sin restricción agregada semanal (no se permite compensar un día bajo con uno alto). Ver [02-plan.md](02-plan.md).
+
+## Pendiente de definición
+
+- **Mercado objetivo y fuente de precios:** todavía no se definió si el proyecto apunta a USA, Colombia, ambos, u otro mercado — y la fuente de precios viable depende de esa decisión (evaluadas: Kroger Developer API para USA, precio real por SKU pero solo cadena Kroger; DANE SIPSA para Colombia, precio mayorista agropecuario gratuito pero no precio de góndola por SKU comercial). Mientras tanto, `ingredients.purchase_unit_price/label/size` se completan manualmente (son nullable por diseño).
