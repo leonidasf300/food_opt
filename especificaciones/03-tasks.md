@@ -15,13 +15,16 @@
 - [ ] Definir proceso de curación manual para huecos restantes (ingredientes sin match en ninguna fuente).
 
 ## Backend de optimización
-- [ ] Setup del proyecto Python con Pyomo + HiGHS (ver [00-constitution.md](00-constitution.md)).
-- [ ] Implementar función objetivo multi-criterio (costo, variedad, tiempo).
-- [ ] Implementar restricciones nutricionales (macro/micro diarios y semanales).
+- [x] Setup del proyecto Python con Pyomo + HiGHS (ver [00-constitution.md](00-constitution.md)) — `backend/`.
+- [x] Implementar función objetivo multi-criterio (costo, variedad, tiempo) — `backend/food_opt/model.py`.
+- [x] Implementar restricciones nutricionales diarias (macro/micro).
+- [ ] Extender restricciones nutricionales a horizonte semanal (hoy solo diarias).
+- [ ] Normalizar los tres objetivos antes de combinarlos (hoy se suman en escalas distintas: $, minutos, conteo).
 - [ ] Implementar redondeo a unidades de compra comercial.
-- [ ] Implementar agregación de lista de compras semanal.
+- [ ] Implementar agregación de lista de compras semanal (requiere receta → ingredientes desde la capa de datos).
 
 ## Testing (según 04-validate.md)
-- [ ] Unit tests: sumas nutricionales, minimización de costo, lógica de redondeo.
+- [x] Unit tests del modelo: cumplimiento de restricciones nutricionales, indicador de variedad, sensibilidad al peso de costo — `backend/tests/test_model.py`.
+- [ ] Unit tests: lógica de redondeo (pendiente de implementar el redondeo mismo).
 - [ ] Integration tests: Supabase ↔ backend de optimización.
 - [ ] E2E tests: flujo completo preferencias → plan de comidas → lista de compras.

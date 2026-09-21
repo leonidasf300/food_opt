@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Node / Next.js (frontend, when it's scaffolded)
+node_modules/
+.next/
+
+# Env files
+.env
+.env.local

@@ -4,38 +4,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repository currently contains only specification documents — no source code, package manifests, or build tooling exist yet. There are no build/lint/test commands to run because nothing has been scaffolded. When code is added, this file should be updated with the actual commands (e.g. `npm run build`, `pytest`, etc.) and verified architecture.
+The `backend/` optimization module has been scaffolded and is under active development. The frontend (Next.js) and data layer (Supabase) have not been started yet.
 
-Specs are organized under `especificaciones/` following the **SDD (Spec-Driven Development)** methodology — see [`especificaciones/README.md`](especificaciones/README.md) for the full phase breakdown:
-- `especificaciones/00-constitution.md` — Constitution phase: non-negotiable project principles
-- `especificaciones/01-specify.md` — Specify phase: system overview and functional modules
-- `especificaciones/02-plan.md` — Plan phase: optimization model technical design
-- `especificaciones/03-tasks.md` — Tasks phase: proposed task breakdown (unrefined)
-- `especificaciones/04-validate.md` — Validate phase: verification/testing plan
-
-Implement (writing the actual code) hasn't started — this repo has no source code yet.
+Specs live under `especificaciones/` following the **SDD (Spec-Driven Development)** methodology — see [`especificaciones/README.md`](especificaciones/README.md) for the full phase breakdown and [`especificaciones/03-tasks.md`](especificaciones/03-tasks.md) for what's done vs. pending:
+- `especificaciones/00-constitution.md` — Constitution: non-negotiable project principles and resolved technical decisions (backend stack, data source, process)
+- `especificaciones/01-specify.md` — Specify: system overview and functional modules
+- `especificaciones/02-plan.md` — Plan: optimization model technical design
+- `especificaciones/03-tasks.md` — Tasks: task breakdown with progress checkboxes
+- `especificaciones/04-validate.md` — Validate: verification/testing plan
 
 When adding new specs or docs, place them in `especificaciones/` and note which SDD phase they belong to.
 
-## Intended architecture (per specs, not yet implemented)
+## Commands
 
-This is planned as an AI-assisted nutrition and grocery management platform with three main pieces:
+### Backend (`backend/`)
 
-- **Frontend**: React + Next.js, deployed on Vercel. Handles user profile/preferences, including sliders for weighting a multi-objective optimization (cost, variety, prep time) that must sum to 100%.
-- **Data layer**: Supabase, storing nutritional data, user parameters, and recipe configurations.
-- **Optimization backend** (language unspecified in current docs, referred to as "the Python optimization backend" in the verification plan): solves a multi-objective model that:
-  - Minimizes total ingredient cost.
-  - Maximizes recipe/ingredient variety over the planning period.
-  - Minimizes total food preparation time.
-  - Is constrained by daily/weekly macro and micronutrient targets.
-  - Rounds portions to standard commercial purchasing units.
-  - Aggregates ingredient quantities across recipes into a weekly shopping list.
+```
+cd backend
+python -m venv .venv
+.venv/Scripts/activate          # Windows; use .venv/bin/activate on macOS/Linux
+pip install -r requirements.txt
 
-## Testing plan (per specs, not yet implemented)
+python -m pytest -q             # run all tests
+python -m pytest -q tests/test_model.py::test_solve_satisfies_nutrient_bounds_each_day  # single test
+```
 
-Three verification layers are specified:
-1. **Unit tests** for backend math: nutrient sum totals, cost minimization, rounding logic.
-2. **Integration tests** between Supabase and the optimization backend.
-3. **End-to-end tests** covering the full flow from adjusting preferences in the Next.js UI to generating the final meal plan and shopping list.
+## Architecture
 
-Key correctness properties to validate when tests are written: aggregate macro/micronutrient sums across selected recipes must satisfy target constraints, and ingredient aggregation across multiple recipe occurrences (e.g. same ingredient on separate days) must be accurate.
+Planned as an AI-assisted nutrition and grocery management platform with three pieces (per `especificaciones/01-specify.md`):
+
+- **Frontend** *(not started)*: React + Next.js, deployed on Vercel. User profile/preferences screen with sliders weighting the multi-objective optimization (cost, variety, prep time) that must sum to 100%.
+- **Data layer** *(not started)*: Supabase. Schema for users, preferences, recipes, ingredients, nutrient values. Nutrition data sourced from a USDA FoodData Central snapshot, supplemented by commercial APIs and manual curation (see `especificaciones/00-constitution.md`).
+- **Optimization backend** (`backend/`, Python + Pyomo + HiGHS): solves a weighted multi-objective model — minimize cost, minimize prep time, maximize recipe variety — subject to per-day nutrient constraints.
+  - `backend/food_opt/model.py` — `Recipe`, `NutrientTarget`, `Weights` (validates weights sum to 1.0) dataclasses; `build_model()` constructs the Pyomo `ConcreteModel`; `solve()` runs it through the `appsi_highs` solver interface.
+  - Recipe selection is modeled as `x[recipe, day]` (integer servings, bounded) plus a `y[recipe]` binary variety indicator, linked to actual usage via two constraints (`usage_upper_bound`, `usage_lower_bound`) rather than a naive count — this avoids the solver getting "free" variety credit for unused recipes.
+  - **Known gap**: cost ($), prep time (minutes) and variety (recipe count) are combined as a raw weighted sum despite being on different scales — proper normalization isn't implemented yet (tracked in `especificaciones/03-tasks.md`).
+  - **Scope boundary**: shopping-list aggregation and rounding to commercial purchasing units are deferred until the data layer provides a recipe → ingredient breakdown (currently recipes only carry aggregate nutrient totals).
