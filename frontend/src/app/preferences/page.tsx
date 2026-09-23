@@ -124,7 +124,7 @@ export default function PreferencesPage() {
           </button>
         </form>
 
-        <div className="flex justify-between text-sm">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <button
             type="button"
             onClick={() => setAuthMode(authMode === "signup" ? "signin" : "signup")}
@@ -178,7 +178,10 @@ export default function PreferencesPage() {
       {saved && <p className="text-green-600">Guardado.</p>}
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
 
-      <div className="flex gap-4 text-sm">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <Link href="/body-profile" className="underline">
+          Perfil corporal →
+        </Link>
         <Link href="/targets" className="underline">
           Objetivos nutricionales →
         </Link>

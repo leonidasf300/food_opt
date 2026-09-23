@@ -45,6 +45,8 @@ npx supabase db reset           # reapply all migrations + seed from scratch, lo
 
 Local ports are shifted to 58320-58329 (not the CLI's 54320-54329 default) — Windows dynamically reserves 54318-54417 for Hyper-V/WSL, which breaks binding in that range with a permissions error, not a port-in-use error. See `supabase/README.md` if this needs revisiting on another machine.
 
+**A left-uncommented `SUPABASE_DB_URL` in `supabase/scripts/.env` silently redirects every script run at cloud instead of local — including ones you're sure are hitting local.** All scripts here (`import_usda.py`, `import_recipes.py`, `set_prices_co.py`, ...) resolve their target with `load_dotenv()` + `os.environ.get("SUPABASE_DB_URL", DEFAULT_LOCAL_DB_URL)`, so whatever's in `.env` wins over the local default whenever it's set, with zero warning that you're not touching what you think you're touching. This bit us for real on 2026-09-23: `SUPABASE_DB_URL` had been left uncommented (pointed at cloud) since the DB-password-reset task the day before; `set_prices_co.py` kept printing "Updated 15/15" and the backend kept serving stale USD placeholder prices from local, which looked exactly like a supabase-stop/start data-loss bug (initially misdiagnosed as one here) but was actually every "local" run quietly landing on cloud the whole time. Convention going forward: keep that line commented out by default (local), uncomment it only for the one command that's intentionally targeting cloud, comment it back out immediately after -- don't leave it set as a standing default.
+
 Cloud project is linked (`supabase/.temp/project-ref`). Commands that touch it need `SUPABASE_ACCESS_TOKEN` (personal token, not stored in the repo) and the DB password:
 
 ```
