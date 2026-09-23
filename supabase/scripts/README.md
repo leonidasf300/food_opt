@@ -50,15 +50,15 @@ No es un catálogo curado, es un punto de partida: extender la lista según haga
 
 **Nota sobre el pooler:** todos los scripts acá conectan con `prepare_threshold=None`. Sin eso, correr un script con suficientes ejecuciones repetidas del mismo `INSERT`/`UPDATE` contra el connection pooler de Supabase (modo transacción) revienta con `DuplicatePreparedStatement` — el pooler puede mandar cada query a un backend distinto, y las prepared statements de psycopg no sobreviven eso. Lo encontramos corriendo `import_recipes.py` contra cloud.
 
-## `set_placeholder_prices.py`
+## `set_prices_co.py`
 
-Completa `purchase_unit_label/size/price` de los 15 ingredientes de USDA con precios estimados a mano (mercado no definido todavía, ver [`especificaciones/00-constitution.md`](../../especificaciones/00-constitution.md)) — **no son precios reales**, existen solo para que el optimizador tenga un costo con qué trabajar mientras se define la fuente real. `purchase_unit_size` está en gramos, igual que `ingredient_nutrients.amount_per_100_units` (USDA reporta por masa incluso para líquidos como leche/aceite, no por volumen) — mantener esa consistencia importa para que el costo por porción salga bien calculado.
+Completa `purchase_unit_label/size/price` de los 15 ingredientes de USDA con **precios reales de Colombia** — leídos a mano de exito.com el 2026-09-22 (no vía API: DANE SIPSA y DANE IPC se investigaron primero como fuente real y ambos se descartaron, ver [`especificaciones/00-constitution.md`](../../especificaciones/00-constitution.md)). Es una foto fija curada a mano, no un feed que se actualiza solo — sin proceso de refresco todavía, se va a desactualizar. `purchase_unit_size`/`purchase_unit_label` son la presentación comercial real (ej. "Bolsa 5000 g", "Cubeta x30 huevos") para que `shopping_list.py` redondee a unidades que de verdad se compran, no a kilos abstractos. Dos precios son estimados, no leídos directo, porque exito.com los vende por unidad en vez de por peso: huevo ($550/huevo, asumiendo 50 g/huevo) y batata ($1.358/unidad, asumiendo ~150 g/unidad) — el de la batata es el más flojo de los 15. `purchase_unit_size` está en gramos, igual que `ingredient_nutrients.amount_per_100_units` (USDA reporta por masa incluso para líquidos como leche/aceite, no por volumen) — mantener esa consistencia importa para que el costo por porción salga bien calculado.
 
 ```
-python set_placeholder_prices.py
+python set_prices_co.py
 ```
 
-Correr **después** de `import_usda.py` (necesita que los ingredientes ya existan) — por eso es un script, no una migración: una migración correría antes de que el import cree las filas y no actualizaría nada.
+Correr **después** de `import_usda.py` (necesita que los ingredientes ya existan) — por eso es un script, no una migración: una migración correría antes de que el import cree las filas y no actualizaría nada. Corrido contra **cloud** el 2026-09-22 (15/15 ingredientes, verificado con una query directa) — pendiente correrlo también contra local la próxima vez que Docker esté levantado.
 
 ## `import_recipes.py`
 
