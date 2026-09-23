@@ -13,11 +13,15 @@ const SLIDERS: { key: keyof Weights; label: string }[] = [
   { key: "prepTime", label: "Tiempo de preparación" },
 ];
 
+type AuthMode = "signin" | "signup";
+
 export default function PreferencesPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [password, setPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -54,24 +58,20 @@ export default function PreferencesPage() {
       });
   }, [userId]);
 
-  async function handleSignIn(event: FormEvent) {
+  async function handleAuth(event: FormEvent) {
     event.preventDefault();
     setErrorMessage(null);
-    // Explicit redirect target, not left to Auth's Site URL default: the home page
-    // ("/") never imports the Supabase client, so it never calls detectSessionInUrl
-    // on the magic-link callback's #access_token fragment -- the session would just
-    // sit unprocessed until the user happens to navigate to a page that does. This
-    // was found by testing the actual local flow, not by inspection: the page looked
-    // fine (no console errors) but silently never finished its auth check.
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/preferences` },
-    });
+    setAuthLoading(true);
+    const { error } =
+      authMode === "signup"
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+    setAuthLoading(false);
     if (error) {
       setErrorMessage(error.message);
       return;
     }
-    setMagicLinkSent(true);
+    // onAuthStateChange picks up the new session and flips userId -- no manual redirect needed.
   }
 
   async function handleSave() {
@@ -100,24 +100,43 @@ export default function PreferencesPage() {
   if (!userId) {
     return (
       <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-        <h1 className="text-xl font-semibold">Iniciar sesión</h1>
-        {magicLinkSent ? (
-          <p>Revisá tu email: te mandamos un link para entrar.</p>
-        ) : (
-          <form onSubmit={handleSignIn} className="flex flex-col gap-3">
-            <input
-              type="email"
-              required
-              placeholder="tu@email.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="rounded border px-3 py-2"
-            />
-            <button type="submit" className="rounded bg-black px-3 py-2 text-white">
-              Enviar link de acceso
-            </button>
-          </form>
-        )}
+        <h1 className="text-xl font-semibold">{authMode === "signup" ? "Crear cuenta" : "Iniciar sesión"}</h1>
+        <form onSubmit={handleAuth} className="flex flex-col gap-3">
+          <input
+            type="email"
+            required
+            placeholder="tu@email.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="rounded border px-3 py-2"
+          />
+          <input
+            type="password"
+            required
+            minLength={6}
+            placeholder="Contraseña"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="rounded border px-3 py-2"
+          />
+          <button type="submit" disabled={authLoading} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50">
+            {authLoading ? "..." : authMode === "signup" ? "Crear cuenta" : "Entrar"}
+          </button>
+        </form>
+
+        <div className="flex justify-between text-sm">
+          <button
+            type="button"
+            onClick={() => setAuthMode(authMode === "signup" ? "signin" : "signup")}
+            className="underline"
+          >
+            {authMode === "signup" ? "Ya tengo cuenta" : "Crear cuenta nueva"}
+          </button>
+          <Link href="/forgot-password" className="underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
+
         {errorMessage && <p className="text-red-600">{errorMessage}</p>}
       </main>
     );
