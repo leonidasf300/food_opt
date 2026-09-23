@@ -51,48 +51,68 @@ export default function TargetsPage() {
         .order("measured_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
-      supabase.from("user_nutrient_targets").select("nutrient_key, minimum, maximum").eq("user_id", userId),
+      supabase.from("user_nutrient_targets").select("nutrient_key, minimum, maximum, is_custom").eq("user_id", userId),
     ]).then(([bodyProfileRes, savedTargetsRes]) => {
       if (bodyProfileRes.error) return setErrorMessage(bodyProfileRes.error.message);
       if (savedTargetsRes.error) return setErrorMessage(savedTargetsRes.error.message);
 
       const savedTargets = savedTargetsRes.data;
-      if (savedTargets && savedTargets.length > 0) {
-        // Already saved (possibly customized) before -- show those, editable, same as always.
+      const bodyProfile = bodyProfileRes.data;
+      setHasBodyProfile(Boolean(bodyProfile));
+
+      const applySavedTargets = () => {
         setTargets((current) => {
           const next = { ...current };
-          for (const row of savedTargets) {
+          for (const row of savedTargets ?? []) {
             if (row.nutrient_key in next) {
               next[row.nutrient_key as NutrientKey] = { minimum: String(row.minimum), maximum: String(row.maximum) };
             }
           }
           return next;
         });
+        setLocked(false);
+      };
+
+      // Explicitly customized before (saved from the unlocked/"Personalizar" view) --
+      // always respect that choice, never silently overwritten by a newer body-profile
+      // measurement.
+      const isCustomSaved = savedTargets && savedTargets.length > 0 && savedTargets.every((row) => row.is_custom);
+      if (isCustomSaved) {
+        applySavedTargets();
         return;
       }
 
-      const bodyProfile = bodyProfileRes.data;
-      setHasBodyProfile(Boolean(bodyProfile));
-      if (!bodyProfile) return; // no saved targets, no body profile -> keep DEFAULT_TARGETS, editable
+      if (bodyProfile) {
+        // Recompute from the latest measurement every time -- this is what makes the
+        // range track your most recent perfil corporal instead of freezing on
+        // whatever was saved (even un-customized) the first time.
+        const profile: BodyProfile = {
+          sex: bodyProfile.sex,
+          age: bodyProfile.age,
+          heightCm: bodyProfile.height_cm,
+          weightKg: bodyProfile.weight_kg,
+          neckCm: bodyProfile.neck_cm,
+          waistCm: bodyProfile.waist_cm,
+          hipCm: bodyProfile.hip_cm,
+          goal: bodyProfile.goal,
+        };
+        const suggested = suggestNutrientTargets(profile);
+        setTargets({
+          calories: { minimum: String(suggested.calories.minimum), maximum: String(suggested.calories.maximum) },
+          protein_g: { minimum: String(suggested.protein_g.minimum), maximum: String(suggested.protein_g.maximum) },
+          fat_g: { minimum: String(suggested.fat_g.minimum), maximum: String(suggested.fat_g.maximum) },
+          carbs_g: { minimum: String(suggested.carbs_g.minimum), maximum: String(suggested.carbs_g.maximum) },
+        });
+        setLocked(true); // pre-filled from the calculated suggestion -- "Personalizar" unlocks manual editing
+        return;
+      }
 
-      const profile: BodyProfile = {
-        sex: bodyProfile.sex,
-        age: bodyProfile.age,
-        heightCm: bodyProfile.height_cm,
-        weightKg: bodyProfile.weight_kg,
-        neckCm: bodyProfile.neck_cm,
-        waistCm: bodyProfile.waist_cm,
-        hipCm: bodyProfile.hip_cm,
-        goal: bodyProfile.goal,
-      };
-      const suggested = suggestNutrientTargets(profile);
-      setTargets({
-        calories: { minimum: String(suggested.calories.minimum), maximum: String(suggested.calories.maximum) },
-        protein_g: { minimum: String(suggested.protein_g.minimum), maximum: String(suggested.protein_g.maximum) },
-        fat_g: { minimum: String(suggested.fat_g.minimum), maximum: String(suggested.fat_g.maximum) },
-        carbs_g: { minimum: String(suggested.carbs_g.minimum), maximum: String(suggested.carbs_g.maximum) },
-      });
-      setLocked(true); // pre-filled from the calculated suggestion -- "Personalizar" unlocks manual editing
+      if (savedTargets && savedTargets.length > 0) {
+        // No body profile (e.g. never filled in, or deleted) but there are old
+        // non-custom saved targets -- show those rather than silently reverting to
+        // the hardcoded defaults.
+        applySavedTargets();
+      }
     });
   }, [userId]);
 
@@ -118,6 +138,10 @@ export default function TargetsPage() {
       nutrient_key: key,
       minimum: Number(targets[key].minimum),
       maximum: Number(targets[key].maximum),
+      // Saved straight from the locked/computed view (no "Personalizar") stays
+      // is_custom=false, so it keeps recomputing from newer body-profile
+      // measurements instead of freezing in place.
+      is_custom: !locked,
     }));
 
     const { error } = await supabase
