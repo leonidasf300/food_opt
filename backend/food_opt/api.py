@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .data import fetch_recipe_ingredients, fetch_recipes
-from .model import NutrientTarget, Weights, build_model, solve
+from .model import ACCEPTABLE_TERMINATION_CONDITIONS, NutrientTarget, Weights, build_model, solve
 from .shopping_list import build_shopping_list
 
 app = FastAPI(title="Food Opt")
@@ -90,7 +90,7 @@ def create_plan(request: PlanRequest) -> PlanResponse:
     result = solve(model)
 
     status = str(result.solver.termination_condition)
-    if status != "optimal":
+    if status not in ACCEPTABLE_TERMINATION_CONDITIONS:
         raise HTTPException(status_code=422, detail=f"No feasible plan found (solver status: {status})")
 
     recipe_by_name = {r.name: r for r in recipes}

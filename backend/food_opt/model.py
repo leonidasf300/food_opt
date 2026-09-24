@@ -118,8 +118,25 @@ def _total_variety_expr(m: pyo.ConcreteModel):
     return sum(m.y[r] for r in m.RECIPES)
 
 
+# A solve that hit the time limit (or otherwise stopped with a feasible incumbent
+# short of the gap tolerance) is still a perfectly usable plan -- only "optimal"
+# was accepted before the time limit existed, which would've made every timed-out
+# solve look identical to a truly infeasible one.
+ACCEPTABLE_TERMINATION_CONDITIONS = {"optimal", "maxTimeLimit", "feasible"}
+
+
 def solve(model: pyo.ConcreteModel) -> pyo.SolverResults:
     solver = pyo.SolverFactory("appsi_highs")
+    # HiGHS defaults to a 0.01% MIP gap with no time limit -- fine for a handful of
+    # recipes, but once the catalog grew past ~20 the branch-and-bound tree needed
+    # to *prove* that last sliver of optimality started taking 30+ seconds per
+    # solve, and build_model() calls solve() 4 times per request (payoff table +
+    # final). A 2% gap is practically indistinguishable in a meal plan -- the
+    # solver already finds a solution this good in a fraction of a second, the
+    # rest of the time is spent proving no marginally-better one exists -- and the
+    # time limit is a hard backstop so a single request can never hang indefinitely.
+    solver.config.mip_gap = 0.02
+    solver.config.time_limit = 15
     return solver.solve(model)
 
 
@@ -140,7 +157,7 @@ def _payoff_table(
         }[key]
         m.objective = pyo.Objective(expr=expr, sense=sense)
         result = solve(m)
-        if str(result.solver.termination_condition) != "optimal":
+        if str(result.solver.termination_condition) not in ACCEPTABLE_TERMINATION_CONDITIONS:
             raise RuntimeError(f"payoff-table sub-problem for '{key}' did not solve to optimality")
         rows.append(
             {
