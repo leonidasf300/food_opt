@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
-import { calculateBmi, calculateBodyFatPercent, type Goal, type Sex } from "@/lib/nutritionGoals";
+import { calculateBmi, calculateBodyFatPercent, suggestNutrientTargets, type BodyProfile, type Goal, type Sex } from "@/lib/nutritionGoals";
 import { LineChart } from "@/components/LineChart";
 
 type FormState = {
@@ -135,8 +135,48 @@ export default function BodyProfilePage() {
       hip_cm: hipCm,
       goal: form.goal,
     });
+    if (error) {
+      setSaving(false);
+      return setErrorMessage(error.message);
+    }
+
+    // Saving a body profile with nothing waiting on a separate visit to Objetivos
+    // nutricionales -- without this, plan generation fails with "no hay objetivos
+    // guardados" until the user happens to open /targets and click Guardar there.
+    // Only auto-fills when targets haven't been manually customized (is_custom),
+    // same rule /targets itself uses, so an explicit "Personalizar" choice is never
+    // silently overwritten.
+    const { data: existingTargets, error: targetsReadError } = await supabase
+      .from("user_nutrient_targets")
+      .select("is_custom")
+      .eq("user_id", userId);
+    if (!targetsReadError) {
+      const hasCustomTargets = existingTargets?.some((row) => row.is_custom);
+      if (!hasCustomTargets) {
+        const profile: BodyProfile = {
+          sex: form.sex,
+          age,
+          heightCm,
+          weightKg,
+          neckCm,
+          waistCm,
+          hipCm,
+          goal: form.goal,
+        };
+        const suggested = suggestNutrientTargets(profile);
+        await supabase.from("user_nutrient_targets").upsert(
+          [
+            { user_id: userId, nutrient_key: "calories", ...suggested.calories, is_custom: false },
+            { user_id: userId, nutrient_key: "protein_g", ...suggested.protein_g, is_custom: false },
+            { user_id: userId, nutrient_key: "fat_g", ...suggested.fat_g, is_custom: false },
+            { user_id: userId, nutrient_key: "carbs_g", ...suggested.carbs_g, is_custom: false },
+          ],
+          { onConflict: "user_id,nutrient_key" }
+        );
+      }
+    }
+
     setSaving(false);
-    if (error) return setErrorMessage(error.message);
     setSaved(true);
     loadHistory(userId);
   }
