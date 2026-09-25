@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://localhost:8000";
+const LAST_PLAN_STORAGE_KEY = "food-opt:last-plan";
 
 type DayPlan = { day: number; servings: Record<string, number> };
 type ShoppingListItem = {
@@ -83,7 +84,13 @@ export default function PlanPage() {
         return fail(body?.detail ?? `Error del backend (HTTP ${response.status})`);
       }
 
-      setPlan(await response.json());
+      const body: PlanResponse = await response.json();
+      setPlan(body);
+      try {
+        localStorage.setItem(LAST_PLAN_STORAGE_KEY, JSON.stringify(body));
+      } catch {
+        // localStorage puede fallar (modo privado, storage lleno) -- no es crítico, el plan sigue en pantalla.
+      }
     } catch {
       return fail(`No se pudo conectar con el backend en ${BACKEND_URL}. ¿Está corriendo? (uvicorn food_opt.api:app --port 8000)`);
     } finally {
@@ -166,25 +173,9 @@ export default function PlanPage() {
             </div>
           ))}
 
-          <div className="rounded border p-3">
-            <div className="font-medium">Lista de compras</div>
-            <table className="mt-2 w-full text-sm">
-              <tbody>
-                {plan.shopping_list.map((item) => (
-                  <tr key={item.ingredient_name} className="border-t">
-                    <td className="py-1 pr-2">{item.ingredient_name}</td>
-                    <td className="py-1 pr-2 text-gray-500">{item.quantity_needed} g</td>
-                    <td className="py-1 pr-2">
-                      {item.units_to_buy !== null
-                        ? `${item.units_to_buy} × ${item.purchase_unit_label}`
-                        : "sin precio cargado"}
-                    </td>
-                    <td className="py-1 text-right">{item.cost !== null ? `$${item.cost.toFixed(2)}` : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Link href="/shopping-list" className="underline">
+            Ver lista de compras →
+          </Link>
         </div>
       )}
 
@@ -197,6 +188,9 @@ export default function PlanPage() {
         </Link>
         <Link href="/recipes" className="underline">
           ← Recetas
+        </Link>
+        <Link href="/shopping-list" className="underline">
+          Lista de compras →
         </Link>
       </div>
     </main>
