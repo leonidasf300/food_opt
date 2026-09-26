@@ -14,7 +14,7 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     setErrorMessage(null);
     setSending(true);
-    // Same explicit-redirect reasoning as the preferences page's auth form: the
+    // Same explicit-redirect reasoning as the old magic-link login: the
     // target page must itself import the Supabase client so it processes the
     // recovery link's #access_token fragment (detectSessionInUrl).
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
         </form>
       )}
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
-      <Link href="/preferences" className="text-sm underline">
+      <Link href="/login" className="text-sm underline">
         ← Volver a iniciar sesión
       </Link>
     </main>

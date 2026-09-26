@@ -167,10 +167,9 @@ site_url = "http://localhost:3000"
 # `next dev` reports -- landing a magic-link redirect on 127.0.0.1 silently breaks client-side
 # hydration on that page (no console errors, just a page that never finishes mounting).
 #
-# Wildcard, not just the bare origin: the frontend passes an explicit emailRedirectTo
-# of "/preferences" (see frontend/src/app/preferences/page.tsx) so the magic link
-# lands on a page that actually instantiates the Supabase client, instead of "/",
-# which doesn't and so never processes the callback's #access_token fragment.
+# Wildcard, not just the bare origin: auth emails redirect to specific pages that
+# instantiate the Supabase client (e.g. /reset-password), instead of "/", which
+# doesn't and so never processes the callback's #access_token fragment.
 additional_redirect_urls = ["http://localhost:3000/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600

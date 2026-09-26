@@ -4,6 +4,9 @@ export type Weights = {
   prepTime: number;
 };
 
+/** Used until the user saves their own -- plan generation falls back to these too. */
+export const DEFAULT_WEIGHTS: Weights = { cost: 34, variety: 33, prepTime: 33 };
+
 const KEYS: (keyof Weights)[] = ["cost", "variety", "prepTime"];
 
 /**

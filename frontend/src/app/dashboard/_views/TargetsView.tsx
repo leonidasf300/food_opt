@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { suggestNutrientTargets, type BodyProfile } from "@/lib/nutritionGoals";
+import { useDashboardUser } from "../UserContext";
 
 type NutrientKey = "calories" | "protein_g" | "fat_g" | "carbs_g";
 
@@ -23,9 +24,8 @@ const DEFAULT_TARGETS: Targets = {
   carbs_g: { minimum: "150", maximum: "300" },
 };
 
-export default function TargetsPage() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+export function TargetsView({ onSaved }: { onSaved?: () => void }) {
+  const { id: userId } = useDashboardUser();
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
   const [locked, setLocked] = useState(false);
   const [hasBodyProfile, setHasBodyProfile] = useState(false);
@@ -34,15 +34,6 @@ export default function TargetsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
-      setAuthChecked(true);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!userId) return;
-
     Promise.all([
       supabase
         .from("body_profiles")
@@ -118,7 +109,6 @@ export default function TargetsPage() {
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
-    if (!userId) return;
     setErrorMessage(null);
 
     for (const { key, label } of NUTRIENTS) {
@@ -154,33 +144,16 @@ export default function TargetsPage() {
       return;
     }
     setSaved(true);
-  }
-
-  if (!authChecked) {
-    return null;
-  }
-
-  if (!userId) {
-    return (
-      <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-        <p>
-          Iniciá sesión primero en{" "}
-          <Link href="/preferences" className="underline">
-            preferencias
-          </Link>
-          .
-        </p>
-      </main>
-    );
+    onSaved?.();
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-md flex-col gap-6">
       <h1 className="text-xl font-semibold">Objetivos nutricionales</h1>
       {locked ? (
         <p className="text-sm text-gray-500">
           Rango diario calculado a partir de tu{" "}
-          <Link href="/body-profile" className="underline">
+          <Link href="/dashboard/body-profile" className="underline">
             perfil corporal
           </Link>
           . Si querés ajustarlo a mano, tocá &quot;Personalizar&quot;.
@@ -192,7 +165,7 @@ export default function TargetsPage() {
             <>
               {" "}
               Completá tu{" "}
-              <Link href="/body-profile" className="underline">
+              <Link href="/dashboard/body-profile" className="underline">
                 perfil corporal
               </Link>{" "}
               para que estos rangos se calculen solos.
@@ -260,21 +233,6 @@ export default function TargetsPage() {
 
       {saved && <p className="text-green-600">Guardado.</p>}
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
-
-      <div className="flex gap-4 text-sm">
-        <Link href="/preferences" className="underline">
-          ← Preferencias
-        </Link>
-        <Link href="/body-profile" className="underline">
-          Perfil corporal →
-        </Link>
-        <Link href="/recipes" className="underline">
-          Recetas →
-        </Link>
-        <Link href="/plan" className="underline">
-          Generar plan →
-        </Link>
-      </div>
-    </main>
+    </div>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
+import { useDashboardUser } from "../UserContext";
 
 type Ingredient = { id: string; name: string };
 
@@ -21,8 +21,7 @@ type DraftLine = { ingredientId: string; quantity: string };
 const EMPTY_LINE: DraftLine = { ingredientId: "", quantity: "" };
 
 export default function RecipesPage() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const { id: userId } = useDashboardUser();
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,14 +34,6 @@ export default function RecipesPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
-      setAuthChecked(true);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!userId) return;
     supabase
       .from("ingredients")
       .select("id, name")
@@ -100,7 +91,6 @@ export default function RecipesPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!userId) return;
     setErrorMessage(null);
 
     const prepTimeMinutes = Number(prepTime);
@@ -164,26 +154,8 @@ export default function RecipesPage() {
     loadRecipes();
   }
 
-  if (!authChecked) {
-    return null;
-  }
-
-  if (!userId) {
-    return (
-      <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-        <p>
-          Iniciá sesión primero en{" "}
-          <Link href="/preferences" className="underline">
-            preferencias
-          </Link>
-          .
-        </p>
-      </main>
-    );
-  }
-
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <h1 className="text-xl font-semibold">Recetas</h1>
       <p className="text-sm text-gray-500">
         Recetas base disponibles para el optimizador. Podés crear las tuyas — solo vos podés editar o borrar las que
@@ -293,15 +265,6 @@ export default function RecipesPage() {
           </div>
         ))}
       </div>
-
-      <div className="flex gap-4 text-sm">
-        <Link href="/preferences" className="underline">
-          ← Preferencias
-        </Link>
-        <Link href="/plan" className="underline">
-          Generar plan →
-        </Link>
-      </div>
-    </main>
+    </div>
   );
 }

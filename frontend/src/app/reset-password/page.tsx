@@ -48,7 +48,7 @@ export default function ResetPasswordPage() {
       {done ? (
         <>
           <p>Listo, ya podés iniciar sesión con tu contraseña nueva.</p>
-          <Link href="/preferences" className="underline">
+          <Link href="/login" className="underline">
             Ir a iniciar sesión
           </Link>
         </>

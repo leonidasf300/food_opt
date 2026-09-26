@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { calculateBmi, calculateBodyFatPercent, suggestNutrientTargets, type BodyProfile, type Goal, type Sex } from "@/lib/nutritionGoals";
 import { LineChart } from "@/components/LineChart";
+import { useDashboardUser } from "../UserContext";
 
 type FormState = {
   sex: Sex;
@@ -52,21 +52,13 @@ const GOAL_LABEL: Record<Goal, string> = Object.fromEntries(GOALS.map(({ value, 
   string
 >;
 
-export default function BodyProfilePage() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
+  const { id: userId } = useDashboardUser();
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
-      setAuthChecked(true);
-    });
-  }, []);
 
   function loadHistory(userId: string) {
     return supabase
@@ -95,7 +87,6 @@ export default function BodyProfilePage() {
   }
 
   useEffect(() => {
-    if (!userId) return;
     loadHistory(userId);
   }, [userId]);
 
@@ -105,7 +96,6 @@ export default function BodyProfilePage() {
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
-    if (!userId) return;
     setErrorMessage(null);
 
     const age = Number(form.age);
@@ -179,22 +169,7 @@ export default function BodyProfilePage() {
     setSaving(false);
     setSaved(true);
     loadHistory(userId);
-  }
-
-  if (!authChecked) return null;
-
-  if (!userId) {
-    return (
-      <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-        <p>
-          Iniciá sesión primero en{" "}
-          <Link href="/preferences" className="underline">
-            preferencias
-          </Link>
-          .
-        </p>
-      </main>
-    );
+    onSaved?.();
   }
 
   const numericPreview = {
@@ -226,7 +201,7 @@ export default function BodyProfilePage() {
     .filter((p): p is { date: string; value: number } => p !== null);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <h1 className="text-xl font-semibold">Perfil corporal</h1>
       <p className="text-sm text-gray-500">
         Estos datos se usan para precalcular tus objetivos nutricionales — después los vas a poder personalizar a
@@ -407,15 +382,6 @@ export default function BodyProfilePage() {
           </div>
         </div>
       )}
-
-      <div className="flex gap-4 text-sm">
-        <Link href="/preferences" className="underline">
-          ← Preferencias
-        </Link>
-        <Link href="/targets" className="underline">
-          Objetivos nutricionales →
-        </Link>
-      </div>
-    </main>
+    </div>
   );
 }
