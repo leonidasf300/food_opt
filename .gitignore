@@ -11,3 +11,7 @@ node_modules/
 # Env files
 .env
 .env.local
+
+# Personal presentation assets (speaker photo, LinkedIn QR) -- not part of the project
+ciiisol.jpeg
+qr_linkedin.svg
