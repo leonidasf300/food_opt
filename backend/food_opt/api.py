@@ -6,13 +6,15 @@ Local-only for now, not deployed anywhere:
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import pyomo.environ as pyo
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .data import fetch_recipe_ingredients, fetch_recipes
-from .model import ACCEPTABLE_TERMINATION_CONDITIONS, NutrientTarget, Weights, build_model, solve
+from .model import InfeasiblePlanError, NutrientTarget, Weights, build_model, solve
 from .shopping_list import build_shopping_list
 
 app = FastAPI(title="Food Opt")
@@ -29,6 +31,14 @@ class NutrientTargetIn(BaseModel):
     minimum: float
     maximum: float
 
+    @model_validator(mode="after")
+    def _range_is_valid(self) -> "NutrientTargetIn":
+        # Same rule as the DB's target_range_valid check. Without it an inverted range
+        # reached Pyomo and blew up as a 500 while building the constraint.
+        if self.minimum > self.maximum:
+            raise ValueError(f"minimum ({self.minimum}) can't be greater than maximum ({self.maximum})")
+        return self
+
 
 class WeightsIn(BaseModel):
     cost: float
@@ -40,6 +50,11 @@ class PlanRequest(BaseModel):
     num_days: int = Field(gt=0, le=14)
     nutrient_targets: dict[str, NutrientTargetIn]
     weights: WeightsIn
+    # Whose recipes to plan with: seed recipes + this user's own. Optional -- without
+    # it only seed recipes are used. This scopes the catalog, it is NOT authentication
+    # (the API has none; it's local-only, and recipes are readable by every signed-in
+    # user through RLS anyway).
+    user_id: UUID | None = None
 
 
 class DayPlan(BaseModel):
@@ -71,7 +86,7 @@ def health() -> dict[str, str]:
 
 @app.post("/plans", response_model=PlanResponse)
 def create_plan(request: PlanRequest) -> PlanResponse:
-    recipes = fetch_recipes()
+    recipes = fetch_recipes(str(request.user_id) if request.user_id else None)
     if not recipes:
         raise HTTPException(status_code=500, detail="No recipes available")
 
@@ -86,12 +101,18 @@ def create_plan(request: PlanRequest) -> PlanResponse:
         key: NutrientTarget(minimum=t.minimum, maximum=t.maximum) for key, t in request.nutrient_targets.items()
     }
 
-    model = build_model(recipes, request.num_days, nutrient_targets, weights)
-    result = solve(model)
+    # build_model() already solves the payoff-table sub-problems, so infeasible
+    # targets surface there, before the final solve -- both must be covered.
+    try:
+        model = build_model(recipes, request.num_days, nutrient_targets, weights)
+        result = solve(model)
+    except InfeasiblePlanError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No plan meets these nutrient targets with the available recipes ({exc}).",
+        ) from exc
 
     status = str(result.solver.termination_condition)
-    if status not in ACCEPTABLE_TERMINATION_CONDITIONS:
-        raise HTTPException(status_code=422, detail=f"No feasible plan found (solver status: {status})")
 
     recipe_by_name = {r.name: r for r in recipes}
     days: list[DayPlan] = []
@@ -109,7 +130,7 @@ def create_plan(request: PlanRequest) -> PlanResponse:
                 total_prep_time += recipe_by_name[r].prep_time_minutes * qty
         days.append(DayPlan(day=d, servings=servings))
 
-    recipe_ingredients = fetch_recipe_ingredients(list(total_servings))
+    recipe_ingredients = fetch_recipe_ingredients([recipe_by_name[name] for name in total_servings])
     shopping_list = build_shopping_list(total_servings, recipe_ingredients)
 
     return PlanResponse(

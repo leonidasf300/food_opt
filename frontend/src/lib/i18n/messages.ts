@@ -173,7 +173,9 @@ const es = {
     generateNew: "Generar plan nuevo",
     generate: "Generar plan",
     confirmReplace: "Ya tenés un plan en curso. ¿Generar uno nuevo y reemplazarlo?",
-    noTargets: "No hay objetivos nutricionales guardados todavía — cargalos primero.",    backendError: (status: number) => `Error del backend (HTTP ${status})`,
+    noTargets: "No hay objetivos nutricionales guardados todavía — cargalos primero.",
+    badDays: (min: number, max: number) => `Los días deben ser un número entero entre ${min} y ${max}.`,
+    backendError: (status: number) => `Error del backend (HTTP ${status})`,
     backendUnreachable: (url: string) =>
       `No se pudo conectar con el backend en ${url}. ¿Está corriendo? (uvicorn food_opt.api:app --port 8000)`,
     activeSince: (date: string) => `Plan activo del ${date}`,
@@ -237,7 +239,10 @@ const es = {
     emptyName: "El nombre no puede estar vacío.",
     badPrepTime: "El tiempo de preparación debe ser un número mayor a 0.",
     noIngredients: "Agregá al menos un ingrediente.",
-    badQuantity: "Las cantidades deben ser números mayores a 0.",    saveFailed: "No se pudo guardar la receta.",
+    badQuantity: "Las cantidades deben ser números mayores a 0.",
+    duplicateIngredient: (name: string) =>
+      `"${name}" está repetido. Dejá una sola línea por ingrediente, con la cantidad total.`,
+    saveFailed: "No se pudo guardar la receta.",
   },
 };
 
@@ -407,7 +412,9 @@ const en: Messages = {
     generateNew: "Generate new plan",
     generate: "Generate plan",
     confirmReplace: "You already have a plan in progress. Generate a new one and replace it?",
-    noTargets: "No nutrition targets saved yet — set them first.",    backendError: (status: number) => `Backend error (HTTP ${status})`,
+    noTargets: "No nutrition targets saved yet — set them first.",
+    badDays: (min: number, max: number) => `Days must be a whole number between ${min} and ${max}.`,
+    backendError: (status: number) => `Backend error (HTTP ${status})`,
     backendUnreachable: (url: string) =>
       `Couldn't reach the backend at ${url}. Is it running? (uvicorn food_opt.api:app --port 8000)`,
     activeSince: (date: string) => `Active plan from ${date}`,
@@ -470,7 +477,10 @@ const en: Messages = {
     emptyName: "The name can't be empty.",
     badPrepTime: "Prep time must be a number greater than 0.",
     noIngredients: "Add at least one ingredient.",
-    badQuantity: "Quantities must be numbers greater than 0.",    saveFailed: "Couldn't save the recipe.",
+    badQuantity: "Quantities must be numbers greater than 0.",
+    duplicateIngredient: (name: string) =>
+      `"${name}" is listed more than once. Keep a single line per ingredient, with the total quantity.`,
+    saveFailed: "Couldn't save the recipe.",
   },
 };
 

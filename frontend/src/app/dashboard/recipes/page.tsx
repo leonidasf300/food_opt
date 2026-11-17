@@ -113,41 +113,33 @@ export default function RecipesPage() {
       }
     }
 
+    // One line per ingredient: recipe_ingredients' primary key is (recipe_id, ingredient_id).
+    const seen = new Set<string>();
+    for (const line of validLines) {
+      if (seen.has(line.ingredientId)) {
+        const repeated = ingredients.find((ingredient) => ingredient.id === line.ingredientId);
+        return setErrorMessage(r.duplicateIngredient(repeated ? names.ingredient(repeated.name) : line.ingredientId));
+      }
+      seen.add(line.ingredientId);
+    }
+
     setSaving(true);
     try {
-      let recipeId = editingId;
-      if (recipeId) {
-        const { error } = await supabase
-          .from("recipes")
-          .update({ name: name.trim(), prep_time_minutes: prepTimeMinutes })
-          .eq("id", recipeId);
-        if (error) throw error;
-        const { error: deleteError } = await supabase.from("recipe_ingredients").delete().eq("recipe_id", recipeId);
-        if (deleteError) throw deleteError;
-      } else {
-        const { data, error } = await supabase
-          .from("recipes")
-          .insert({ name: name.trim(), prep_time_minutes: prepTimeMinutes, created_by: userId })
-          .select("id")
-          .single();
-        if (error) throw error;
-        recipeId = data.id;
-      }
-
-      const { error: insertError } = await supabase.from("recipe_ingredients").insert(
-        validLines.map((line) => ({
-          recipe_id: recipeId,
-          ingredient_id: line.ingredientId,
-          quantity: Number(line.quantity),
-          unit: "g",
-        }))
-      );
-      if (insertError) throw insertError;
+      // Single RPC = single transaction (see migration 20261116220000_save_recipe_rpc.sql):
+      // if anything fails, the recipe and its previous ingredients are left untouched.
+      const { error } = await supabase.rpc("save_recipe", {
+        p_recipe_id: editingId,
+        p_name: name.trim(),
+        p_prep_time_minutes: prepTimeMinutes,
+        p_ingredients: validLines.map((line) => ({ ingredient_id: line.ingredientId, quantity: Number(line.quantity) })),
+      });
+      // Supabase errors are plain objects, not Error instances.
+      if (error) throw new Error(error.message);
 
       resetForm();
       loadRecipes();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : r.saveFailed);
+      setErrorMessage(error instanceof Error && error.message ? error.message : r.saveFailed);
     } finally {
       setSaving(false);
     }

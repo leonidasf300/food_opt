@@ -35,6 +35,11 @@ class Recipe:
     cost: float
     prep_time_minutes: float
     nutrients: dict[str, float]
+    # DB id (recipes.id) when the recipe came from the catalog. The model itself keys
+    # everything on `name`, which must be unique within one solve -- data.py guarantees
+    # that. The id is only carried along so callers can look the recipe up again
+    # (e.g. its ingredient breakdown) without matching on a non-unique name.
+    id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -125,6 +130,13 @@ def _total_variety_expr(m: pyo.ConcreteModel):
 ACCEPTABLE_TERMINATION_CONDITIONS = {"optimal", "maxTimeLimit", "feasible"}
 
 
+class InfeasiblePlanError(RuntimeError):
+    """No plan satisfies the nutrient targets with the available recipes (or the
+    solver stopped without finding one). Raised by solve(), and therefore also by
+    build_model(), whose payoff-table sub-problems share the same constraints.
+    """
+
+
 def solve(model: pyo.ConcreteModel) -> pyo.SolverResults:
     solver = pyo.SolverFactory("appsi_highs")
     # HiGHS defaults to a 0.01% MIP gap with no time limit -- fine for a handful of
@@ -137,7 +149,16 @@ def solve(model: pyo.ConcreteModel) -> pyo.SolverResults:
     # time limit is a hard backstop so a single request can never hang indefinitely.
     solver.config.mip_gap = 0.02
     solver.config.time_limit = 15
-    return solver.solve(model)
+    # load_solutions=False: by default the solver interface raises a bare RuntimeError
+    # when there is no solution to load, before the caller ever gets to look at the
+    # termination condition -- so an infeasible problem was indistinguishable from a
+    # crash. Check first, then load explicitly.
+    result = solver.solve(model, load_solutions=False)
+    status = str(result.solver.termination_condition)
+    if status not in ACCEPTABLE_TERMINATION_CONDITIONS or len(result.solution) == 0:
+        raise InfeasiblePlanError(f"no feasible plan found (solver status: {status})")
+    model.solutions.load_from(result)
+    return result
 
 
 def _payoff_table(
@@ -156,9 +177,7 @@ def _payoff_table(
             "variety": _total_variety_expr(m),
         }[key]
         m.objective = pyo.Objective(expr=expr, sense=sense)
-        result = solve(m)
-        if str(result.solver.termination_condition) not in ACCEPTABLE_TERMINATION_CONDITIONS:
-            raise RuntimeError(f"payoff-table sub-problem for '{key}' did not solve to optimality")
+        solve(m)  # raises InfeasiblePlanError if the targets can't be met at all
         rows.append(
             {
                 "cost": pyo.value(_total_cost_expr(m, recipe_by_name)),

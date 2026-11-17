@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { DEFAULT_WEIGHTS } from "@/lib/preferences";
-import { fetchActivePlan, saveActivePlan, type MealPlan, type PlanResponse } from "@/lib/mealPlan";import { useSettings } from "@/lib/i18n/SettingsContext";
+import { fetchActivePlan, saveActivePlan, type MealPlan, type PlanResponse } from "@/lib/mealPlan";
+import { backendErrorText, isValidNumDays, MAX_PLAN_DAYS, MIN_PLAN_DAYS } from "@/lib/planRequest";
+import { useSettings } from "@/lib/i18n/SettingsContext";
 import { useCatalogNames } from "@/lib/i18n/useCatalogNames";
 import { useDashboardUser } from "../UserContext";
 
@@ -27,6 +29,10 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
   }, [userId]);
 
   async function handleGenerate() {
+    // A cleared field is Number("") = 0; catch it here instead of round-tripping to
+    // the backend for a validation error.
+    if (!isValidNumDays(numDays)) return fail(p.badDays(MIN_PLAN_DAYS, MAX_PLAN_DAYS));
+
     const inProgress = plan && (plan.shopping_done_at || plan.meal_plan_days.some((day) => day.completed_at));
     if (inProgress && !window.confirm(p.confirmReplace)) return;
 
@@ -62,13 +68,17 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          num_days: numDays,          nutrient_targets: nutrientTargets,
+          num_days: numDays,
+          // Scopes the catalog to the sample recipes + this user's own.
+          user_id: userId,
+          nutrient_targets: nutrientTargets,
           weights: { cost: weights.cost / 100, variety: weights.variety / 100, prep_time: weights.prepTime / 100 },
         }),
       });
       if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
-        return fail(errorBody?.detail ?? p.backendError(response.status));
+        // `detail` is not always a string (validation errors are an array of objects).
+        return fail(backendErrorText(errorBody?.detail) ?? p.backendError(response.status));
       }
       body = await response.json();
     } catch {
@@ -102,8 +112,8 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
           {p.days}
           <input
             type="number"
-            min={1}
-            max={14}
+            min={MIN_PLAN_DAYS}
+            max={MAX_PLAN_DAYS}
             value={numDays}
             onChange={(event) => setNumDays(Number(event.target.value))}
             className="w-20 rounded border px-3 py-2"

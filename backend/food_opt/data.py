@@ -16,7 +16,18 @@ from .shopping_list import RecipeIngredient
 DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:58322/postgres"
 
 
-def fetch_recipes(db_url: str | None = None) -> list[Recipe]:
+def fetch_recipes(user_id: str | None = None, db_url: str | None = None) -> list[Recipe]:
+    """Recipes the optimizer may use for `user_id`: the seed/global ones
+    (created_by is null) plus that user's own. Without a user_id, seed recipes only.
+
+    This connects as the DB owner, so RLS doesn't apply here -- the created_by filter
+    is what keeps one user's recipes out of another user's plan.
+
+    Names are made unique (`distinct on (name)`): the model and the stored plans key
+    recipes by name, but recipes.name has no unique constraint. When a user's recipe
+    shares a name with a seed one the user's own wins, the same rule the frontend's
+    tracking page applies when it resolves a plan's recipe names.
+    """
     db_url = db_url or os.environ.get("SUPABASE_DB_URL", DEFAULT_LOCAL_DB_URL)
     recipes: list[Recipe] = []
     # prepare_threshold=None: see supabase/scripts/import_usda.py for why this is
@@ -25,13 +36,18 @@ def fetch_recipes(db_url: str | None = None) -> list[Recipe]:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                select name, cost, prep_time_minutes, calories, protein_g, fat_g, carbs_g
+                select distinct on (name)
+                       recipe_id, name, cost, prep_time_minutes, calories, protein_g, fat_g, carbs_g
                 from public.recipe_totals
-                """
+                where created_by is null or created_by = %s::uuid
+                order by name, (created_by is null), recipe_id
+                """,
+                (user_id,),
             )
-            for name, cost, prep_time_minutes, calories, protein_g, fat_g, carbs_g in cur.fetchall():
+            for recipe_id, name, cost, prep_time_minutes, calories, protein_g, fat_g, carbs_g in cur.fetchall():
                 recipes.append(
                     Recipe(
+                        id=str(recipe_id),
                         name=name,
                         cost=float(cost),
                         prep_time_minutes=float(prep_time_minutes),
@@ -47,32 +63,35 @@ def fetch_recipes(db_url: str | None = None) -> list[Recipe]:
 
 
 def fetch_recipe_ingredients(
-    recipe_names: list[str], db_url: str | None = None
+    recipes: list[Recipe], db_url: str | None = None
 ) -> dict[str, list[RecipeIngredient]]:
-    """Per-recipe ingredient breakdown, for building a shopping list from a solved
-    plan (see shopping_list.py). Restricted to `recipe_names` rather than fetching
-    everything, since a plan only ever uses a handful of the available recipes.
+    """Per-recipe ingredient breakdown, keyed by recipe name, for building a shopping
+    list from a solved plan (see shopping_list.py). Restricted to `recipes` rather than
+    fetching everything, since a plan only ever uses a handful of the available recipes.
+
+    Looked up by recipe id, not name: two recipes can share a name, and matching on it
+    pulled in both recipes' ingredients and double-counted the shopping list.
     """
     db_url = db_url or os.environ.get("SUPABASE_DB_URL", DEFAULT_LOCAL_DB_URL)
-    by_recipe: dict[str, list[RecipeIngredient]] = {name: [] for name in recipe_names}
-    if not recipe_names:
+    by_recipe: dict[str, list[RecipeIngredient]] = {r.name: [] for r in recipes}
+    name_by_id = {r.id: r.name for r in recipes if r.id is not None}
+    if not name_by_id:
         return by_recipe
 
     with psycopg.connect(db_url, autocommit=True, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                select r.name, i.name, ri.quantity,
+                select ri.recipe_id, i.name, ri.quantity,
                        i.purchase_unit_label, i.purchase_unit_size, i.purchase_unit_price
                 from public.recipe_ingredients ri
-                join public.recipes r on r.id = ri.recipe_id
                 join public.ingredients i on i.id = ri.ingredient_id
-                where r.name = any(%s)
+                where ri.recipe_id = any(%s::uuid[])
                 """,
-                (recipe_names,),
+                (list(name_by_id),),
             )
-            for recipe_name, ingredient_name, quantity, label, size, price in cur.fetchall():
-                by_recipe[recipe_name].append(
+            for recipe_id, ingredient_name, quantity, label, size, price in cur.fetchall():
+                by_recipe[name_by_id[str(recipe_id)]].append(
                     RecipeIngredient(
                         ingredient_name=ingredient_name,
                         quantity_per_serving=float(quantity),
