@@ -5,33 +5,17 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchSetupStatus } from "@/lib/fetchSetupStatus";
 import { firstIncompleteStep, isStepComplete, SETUP_STEP_COUNT, type SetupStatus } from "@/lib/setupStatus";
+import { useSettings } from "@/lib/i18n/SettingsContext";
 import { useDashboardUser } from "../UserContext";
 import { BodyProfileView } from "../_views/BodyProfileView";
 import { TargetsView } from "../_views/TargetsView";
 import { PreferencesView } from "../_views/PreferencesView";
 import { PlanView } from "../_views/PlanView";
 
-const STEPS = [
-  {
-    title: "Perfil corporal",
-    intro: "Empecemos por vos. Con tus medidas calculamos cuánto necesitás comer por día.",
-  },
-  {
-    title: "Objetivos nutricionales",
-    intro: "Ya calculamos tus rangos diarios a partir de tu perfil. Revisalos y guardalos, o personalizalos si querés.",
-  },
-  {
-    title: "Preferencias",
-    intro: "¿Qué te importa más: gastar poco, comer variado o cocinar rápido? Es opcional, podés usar los valores recomendados.",
-  },
-  {
-    title: "Generar plan",
-    intro: "Último paso: elegí para cuántos días y generamos tu plan de comidas con su lista de compras.",
-  },
-];
-
 function SetupWizard() {
   const { id: userId } = useDashboardUser();
+  const { t } = useSettings();
+  const STEPS = t.setup.steps;
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<SetupStatus | null>(null);
@@ -71,11 +55,9 @@ function SetupWizard() {
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
-          <span className="text-sm text-gray-500">
-            Paso {step} de {SETUP_STEP_COUNT}
-          </span>
+          <span className="text-sm text-gray-500">{t.setup.stepOf(step, SETUP_STEP_COUNT)}</span>
           <Link href="/dashboard/today" className="text-xs text-gray-500 underline">
-            Salir del asistente
+            {t.setup.exit}
           </Link>
         </div>
         <ol className="grid grid-cols-4 gap-2">
@@ -83,7 +65,7 @@ function SetupWizard() {
             const n = i + 1;
             const done = n !== 3 ? isStepComplete(status, n) : status.hasPreferences;
             return (
-              <li key={s.title} className="flex flex-col gap-1">
+              <li key={i} className="flex flex-col gap-1">
                 <div
                   className={`h-1.5 rounded-full ${
                     n === step ? "bg-black dark:bg-white" : done ? "bg-green-600" : "bg-gray-200 dark:bg-zinc-800"
@@ -110,26 +92,26 @@ function SetupWizard() {
           disabled={step === 1}
           className="rounded border px-4 py-2 disabled:opacity-30"
         >
-          ← Atrás
+          {t.setup.back}
         </button>
         {step === 3 && !status.hasPreferences ? (
           <button type="button" onClick={() => goTo(4)} className="rounded border px-4 py-2">
-            Usar valores recomendados →
+            {t.setup.useDefaults}
           </button>
         ) : step < SETUP_STEP_COUNT ? (
           <button
             type="button"
             onClick={() => goTo(step + 1)}
             disabled={!canContinue}
-            title={canContinue ? undefined : "Guardá este paso para continuar"}
+            title={canContinue ? undefined : t.setup.saveToContinue}
             className="rounded bg-black px-4 py-2 text-white disabled:opacity-30 dark:bg-white dark:text-black"
           >
-            Siguiente →
+            {t.setup.next}
           </button>
         ) : (
           canContinue && (
             <Link href="/dashboard/today" className="rounded bg-black px-4 py-2 text-white dark:bg-white dark:text-black">
-              Ir a mi seguimiento →
+              {t.setup.goToTracking}
             </Link>
           )
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useSettings } from "@/lib/i18n/SettingsContext";
 
 export type LineChartPoint = { date: string; value: number };
 
@@ -26,13 +27,10 @@ const PAD_BOTTOM = 28;
 export function LineChart({ title, unit, color, points }: Props) {
   const gradientId = useId();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const { t, formatDate } = useSettings();
 
   if (points.length === 0) {
-    return (
-      <div className="rounded border p-4 text-sm text-gray-500">
-        {title}: sin mediciones todavía.
-      </div>
-    );
+    return <div className="rounded border p-4 text-sm text-gray-500">{t.chart.noData(title)}</div>;
   }
 
   const values = points.map((p) => p.value);
@@ -60,7 +58,7 @@ export function LineChart({ title, unit, color, points }: Props) {
         {title} ({unit})
       </div>
       <div className="relative">
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full" role="img" aria-label={`${title} a lo largo del tiempo`}>
+        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full" role="img" aria-label={t.chart.ariaOverTime(title)}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity="0.15" />
@@ -114,7 +112,7 @@ export function LineChart({ title, unit, color, points }: Props) {
           {points.length <= 8 &&
             points.map((p, i) => (
               <text key={i} x={x(i)} y={HEIGHT - PAD_BOTTOM + 16} textAnchor="middle" fontSize={9} fill="#898781">
-                {new Date(p.date).toLocaleDateString("es-CO", { month: "short", day: "numeric" })}
+                {formatDate(p.date, { month: "short", day: "numeric" })}
               </text>
             ))}
         </svg>
@@ -131,7 +129,7 @@ export function LineChart({ title, unit, color, points }: Props) {
             <div className="font-medium">
               {points[hoverIndex].value} {unit}
             </div>
-            <div className="text-gray-500">{new Date(points[hoverIndex].date).toLocaleDateString("es-CO")}</div>
+            <div className="text-gray-500">{formatDate(points[hoverIndex].date)}</div>
           </div>
         )}
       </div>

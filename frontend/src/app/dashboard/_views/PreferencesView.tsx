@@ -3,16 +3,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { DEFAULT_WEIGHTS, redistributeWeights, type Weights } from "@/lib/preferences";
+import { useSettings } from "@/lib/i18n/SettingsContext";
 import { useDashboardUser } from "../UserContext";
 
-const SLIDERS: { key: keyof Weights; label: string }[] = [
-  { key: "cost", label: "Costo" },
-  { key: "variety", label: "Variedad" },
-  { key: "prepTime", label: "Tiempo de preparación" },
-];
+const SLIDERS: (keyof Weights)[] = ["cost", "variety", "prepTime"];
 
 export function PreferencesView({ onSaved }: { onSaved?: () => void }) {
   const { id: userId } = useDashboardUser();
+  const { t } = useSettings();
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -56,15 +54,13 @@ export function PreferencesView({ onSaved }: { onSaved?: () => void }) {
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
-      <h1 className="text-xl font-semibold">Preferencias</h1>
-      <p className="text-sm text-gray-500">
-        Ajustá cuánto pesa cada objetivo. Siempre suman 100% — mover uno redistribuye los otros dos.
-      </p>
+      <h1 className="text-xl font-semibold">{t.preferences.title}</h1>
+      <p className="text-sm text-gray-500">{t.preferences.intro}</p>
 
-      {SLIDERS.map(({ key, label }) => (
+      {SLIDERS.map((key) => (
         <div key={key} className="flex flex-col gap-1">
           <div className="flex justify-between text-sm">
-            <span>{label}</span>
+            <span>{t.preferences[key]}</span>
             <span>{weights[key]}%</span>
           </div>
           <input
@@ -84,10 +80,10 @@ export function PreferencesView({ onSaved }: { onSaved?: () => void }) {
         disabled={saving}
         className="rounded bg-black px-3 py-2 text-white disabled:opacity-50"
       >
-        {saving ? "Guardando..." : "Guardar"}
+        {saving ? t.common.saving : t.common.save}
       </button>
 
-      {saved && <p className="text-green-600">Guardado.</p>}
+      {saved && <p className="text-green-600">{t.common.saved}</p>}
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
     </div>
   );

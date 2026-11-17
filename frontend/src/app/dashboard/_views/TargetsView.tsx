@@ -4,16 +4,17 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { suggestNutrientTargets, type BodyProfile } from "@/lib/nutritionGoals";
+import {
+  bodyProfileFromRow,
+  NUTRIENT_KEYS,
+  saveAutomaticTargets,
+  targetsMode,
+  type NutrientKey,
+} from "@/lib/nutrientTargets";
+import { useSettings } from "@/lib/i18n/SettingsContext";
 import { useDashboardUser } from "../UserContext";
 
-type NutrientKey = "calories" | "protein_g" | "fat_g" | "carbs_g";
-
-const NUTRIENTS: { key: NutrientKey; label: string; unit: string }[] = [
-  { key: "calories", label: "Calorías", unit: "kcal" },
-  { key: "protein_g", label: "Proteína", unit: "g" },
-  { key: "fat_g", label: "Grasa", unit: "g" },
-  { key: "carbs_g", label: "Carbohidratos", unit: "g" },
-];
+const UNITS: Record<NutrientKey, string> = { calories: "kcal", protein_g: "g", fat_g: "g", carbs_g: "g" };
 
 type Targets = Record<NutrientKey, { minimum: string; maximum: string }>;
 
@@ -24,13 +25,27 @@ const DEFAULT_TARGETS: Targets = {
   carbs_g: { minimum: "150", maximum: "300" },
 };
 
+function targetsFromSuggestion(profile: BodyProfile): Targets {
+  const suggested = suggestNutrientTargets(profile);
+  return Object.fromEntries(
+    NUTRIENT_KEYS.map((key) => [key, { minimum: String(suggested[key].minimum), maximum: String(suggested[key].maximum) }])
+  ) as Targets;
+}
+
+/**
+ * Automatic mode: fields locked, values come from the latest measurement (recomputed
+ * when the user says "yes" after saving a measurement, or when switching to automatic).
+ * Manual mode: fields editable, saved with is_custom = true so measurements never touch them.
+ */
 export function TargetsView({ onSaved }: { onSaved?: () => void }) {
   const { id: userId } = useDashboardUser();
+  const { t } = useSettings();
+  const tt = t.targets;
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
-  const [locked, setLocked] = useState(false);
-  const [hasBodyProfile, setHasBodyProfile] = useState(false);
+  const [mode, setMode] = useState<"auto" | "manual">("manual");
+  const [latestProfile, setLatestProfile] = useState<BodyProfile | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,138 +62,159 @@ export function TargetsView({ onSaved }: { onSaved?: () => void }) {
       if (bodyProfileRes.error) return setErrorMessage(bodyProfileRes.error.message);
       if (savedTargetsRes.error) return setErrorMessage(savedTargetsRes.error.message);
 
-      const savedTargets = savedTargetsRes.data;
-      const bodyProfile = bodyProfileRes.data;
-      setHasBodyProfile(Boolean(bodyProfile));
+      const savedTargets = savedTargetsRes.data ?? [];
+      const profile = bodyProfileRes.data ? bodyProfileFromRow(bodyProfileRes.data) : null;
+      setLatestProfile(profile);
 
-      const applySavedTargets = () => {
-        setTargets((current) => {
-          const next = { ...current };
-          for (const row of savedTargets ?? []) {
-            if (row.nutrient_key in next) {
-              next[row.nutrient_key as NutrientKey] = { minimum: String(row.minimum), maximum: String(row.maximum) };
-            }
+      const savedMode = targetsMode(savedTargets);
+      if (savedMode === "none") {
+        // Nothing saved yet: offer the computed suggestion if there's a measurement.
+        if (profile) {
+          setTargets(targetsFromSuggestion(profile));
+          setMode("auto");
+        }
+        return;
+      }
+
+      // Show what's saved, in either mode. Automatic targets are only recomputed on
+      // an explicit "yes" -- recomputing on every visit would undo a "no".
+      setTargets((current) => {
+        const next = { ...current };
+        for (const row of savedTargets) {
+          if (row.nutrient_key in next) {
+            next[row.nutrient_key as NutrientKey] = { minimum: String(row.minimum), maximum: String(row.maximum) };
           }
-          return next;
-        });
-        setLocked(false);
-      };
-
-      // Explicitly customized before (saved from the unlocked/"Personalizar" view) --
-      // always respect that choice, never silently overwritten by a newer body-profile
-      // measurement.
-      const isCustomSaved = savedTargets && savedTargets.length > 0 && savedTargets.every((row) => row.is_custom);
-      if (isCustomSaved) {
-        applySavedTargets();
-        return;
-      }
-
-      if (bodyProfile) {
-        // Recompute from the latest measurement every time -- this is what makes the
-        // range track your most recent perfil corporal instead of freezing on
-        // whatever was saved (even un-customized) the first time.
-        const profile: BodyProfile = {
-          sex: bodyProfile.sex,
-          age: bodyProfile.age,
-          heightCm: bodyProfile.height_cm,
-          weightKg: bodyProfile.weight_kg,
-          neckCm: bodyProfile.neck_cm,
-          waistCm: bodyProfile.waist_cm,
-          hipCm: bodyProfile.hip_cm,
-          goal: bodyProfile.goal,
-        };
-        const suggested = suggestNutrientTargets(profile);
-        setTargets({
-          calories: { minimum: String(suggested.calories.minimum), maximum: String(suggested.calories.maximum) },
-          protein_g: { minimum: String(suggested.protein_g.minimum), maximum: String(suggested.protein_g.maximum) },
-          fat_g: { minimum: String(suggested.fat_g.minimum), maximum: String(suggested.fat_g.maximum) },
-          carbs_g: { minimum: String(suggested.carbs_g.minimum), maximum: String(suggested.carbs_g.maximum) },
-        });
-        setLocked(true); // pre-filled from the calculated suggestion -- "Personalizar" unlocks manual editing
-        return;
-      }
-
-      if (savedTargets && savedTargets.length > 0) {
-        // No body profile (e.g. never filled in, or deleted) but there are old
-        // non-custom saved targets -- show those rather than silently reverting to
-        // the hardcoded defaults.
-        applySavedTargets();
-      }
+        }
+        return next;
+      });
+      setMode(savedMode);
     });
   }, [userId]);
+
+  async function switchToAuto() {
+    if (!latestProfile) return;
+    setErrorMessage(null);
+    setSavedMessage(null);
+    setSaving(true);
+    try {
+      await saveAutomaticTargets(userId, latestProfile);
+    } catch (error) {
+      setSaving(false);
+      return setErrorMessage((error as Error).message);
+    }
+    setTargets(targetsFromSuggestion(latestProfile));
+    setMode("auto");
+    setSaving(false);
+    setSavedMessage(tt.switchedToAuto);
+  }
+
+  function switchToManual() {
+    // Only unlocks the fields; it becomes manual in the DB once the user saves.
+    setSavedMessage(null);
+    setMode("manual");
+  }
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
     setErrorMessage(null);
 
-    for (const { key, label } of NUTRIENTS) {
+    for (const key of NUTRIENT_KEYS) {
       const minimum = Number(targets[key].minimum);
       const maximum = Number(targets[key].maximum);
       if (Number.isNaN(minimum) || Number.isNaN(maximum) || minimum > maximum) {
-        setErrorMessage(`${label}: el mínimo no puede ser mayor que el máximo.`);
+        setErrorMessage(tt.minAboveMax(tt.nutrients[key]));
         return;
       }
     }
 
     setSaving(true);
-    setSaved(false);
+    setSavedMessage(null);
 
-    const rows = NUTRIENTS.map(({ key }) => ({
+    const rows = NUTRIENT_KEYS.map((key) => ({
       user_id: userId,
       nutrient_key: key,
       minimum: Number(targets[key].minimum),
       maximum: Number(targets[key].maximum),
-      // Saved straight from the locked/computed view (no "Personalizar") stays
-      // is_custom=false, so it keeps recomputing from newer body-profile
-      // measurements instead of freezing in place.
-      is_custom: !locked,
+      is_custom: mode === "manual",
     }));
 
-    const { error } = await supabase
-      .from("user_nutrient_targets")
-      .upsert(rows, { onConflict: "user_id,nutrient_key" });
+    const { error } = await supabase.from("user_nutrient_targets").upsert(rows, { onConflict: "user_id,nutrient_key" });
 
     setSaving(false);
     if (error) {
       setErrorMessage(error.message);
       return;
     }
-    setSaved(true);
+    setSavedMessage(t.common.saved);
     onSaved?.();
   }
 
+  const locked = mode === "auto";
+
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
-      <h1 className="text-xl font-semibold">Objetivos nutricionales</h1>
+      <h1 className="text-xl font-semibold">{tt.title}</h1>
       {locked ? (
         <p className="text-sm text-gray-500">
-          Rango diario calculado a partir de tu{" "}
+          {tt.lockedIntroBefore}{" "}
           <Link href="/dashboard/body-profile" className="underline">
-            perfil corporal
+            {tt.bodyProfileLink}
           </Link>
-          . Si querés ajustarlo a mano, tocá &quot;Personalizar&quot;.
+          {tt.lockedIntroAfter}
         </p>
       ) : (
         <p className="text-sm text-gray-500">
-          Rango diario (mínimo / máximo) para cada nutriente.
-          {!hasBodyProfile && (
+          {tt.unlockedIntro}
+          {!latestProfile && (
             <>
               {" "}
-              Completá tu{" "}
+              {tt.completeProfileBefore}{" "}
               <Link href="/dashboard/body-profile" className="underline">
-                perfil corporal
+                {tt.bodyProfileLink}
               </Link>{" "}
-              para que estos rangos se calculen solos.
+              {tt.completeProfileAfter}
             </>
           )}
         </p>
       )}
 
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">{tt.mode}</span>
+        <div role="radiogroup" aria-label={tt.mode} className="flex self-start overflow-hidden rounded border text-sm">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={mode === "auto"}
+            onClick={switchToAuto}
+            disabled={saving || !latestProfile || mode === "auto"}
+            title={latestProfile ? undefined : tt.autoNeedsProfile}
+            className={`px-4 py-2 ${
+              mode === "auto" ? "bg-black text-white dark:bg-white dark:text-black" : "disabled:opacity-40"
+            }`}
+          >
+            {tt.modeAuto}
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={mode === "manual"}
+            onClick={switchToManual}
+            disabled={saving || mode === "manual"}
+            className={`px-4 py-2 ${mode === "manual" ? "bg-black text-white dark:bg-white dark:text-black" : ""}`}
+          >
+            {tt.modeManual}
+          </button>
+        </div>
+        <p className="text-xs text-gray-500">
+          {mode === "auto" ? tt.autoHint : latestProfile ? tt.manualHint : tt.autoNeedsProfile}
+        </p>
+      </div>
+
       <form onSubmit={handleSave} className="flex flex-col gap-4">
-        {NUTRIENTS.map(({ key, label, unit }) => (
+        {NUTRIENT_KEYS.map((key) => (
           <div key={key} className="flex flex-col gap-1">
             <span className="text-sm font-medium">
-              {label} ({unit})
+              {tt.nutrients[key]} ({UNITS[key]})
             </span>
             <div className="flex gap-2">
               <input
@@ -193,7 +229,7 @@ export function TargetsView({ onSaved }: { onSaved?: () => void }) {
                     [key]: { ...current[key], minimum: event.target.value },
                   }))
                 }
-                placeholder="mínimo"
+                placeholder={tt.min}
                 className="w-full rounded border px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500"
               />
               <input
@@ -208,30 +244,19 @@ export function TargetsView({ onSaved }: { onSaved?: () => void }) {
                     [key]: { ...current[key], maximum: event.target.value },
                   }))
                 }
-                placeholder="máximo"
+                placeholder={tt.max}
                 className="w-full rounded border px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
           </div>
         ))}
 
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-          >
-            {saving ? "Guardando..." : "Guardar"}
-          </button>
-          {locked && (
-            <button type="button" onClick={() => setLocked(false)} className="rounded border px-3 py-2">
-              Personalizar
-            </button>
-          )}
-        </div>
+        <button type="submit" disabled={saving} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50">
+          {saving ? t.common.saving : t.common.save}
+        </button>
       </form>
 
-      {saved && <p className="text-green-600">Guardado.</p>}
+      {savedMessage && <p className="text-green-600">{savedMessage}</p>}
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
     </div>
   );

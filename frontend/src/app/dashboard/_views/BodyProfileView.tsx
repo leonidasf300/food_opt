@@ -2,8 +2,10 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { calculateBmi, calculateBodyFatPercent, suggestNutrientTargets, type BodyProfile, type Goal, type Sex } from "@/lib/nutritionGoals";
+import { calculateBmi, calculateBodyFatPercent, type BodyProfile, type Goal, type Sex } from "@/lib/nutritionGoals";
+import { saveAutomaticTargets, targetsMode } from "@/lib/nutrientTargets";
 import { LineChart } from "@/components/LineChart";
+import { useSettings } from "@/lib/i18n/SettingsContext";
 import { useDashboardUser } from "../UserContext";
 
 type FormState = {
@@ -40,24 +42,18 @@ const DEFAULT_FORM: FormState = {
   goal: "maintain",
 };
 
-const GOALS: { value: Goal; label: string }[] = [
-  { value: "maintain", label: "Mantener mi peso" },
-  { value: "lose_fat", label: "Bajar grasa" },
-  { value: "lose_weight", label: "Bajar peso" },
-  { value: "gain_muscle", label: "Aumentar masa muscular" },
-];
-
-const GOAL_LABEL: Record<Goal, string> = Object.fromEntries(GOALS.map(({ value, label }) => [value, label])) as Record<
-  Goal,
-  string
->;
+const GOALS: Goal[] = ["maintain", "lose_fat", "lose_weight", "gain_muscle"];
 
 export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
   const { id: userId } = useDashboardUser();
+  const { t, formatDate } = useSettings();
+  const b = t.bodyProfile;
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  // Measurement just saved, waiting for "update targets from it?" -- yes/no.
+  const [pendingProfile, setPendingProfile] = useState<BodyProfile | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   function loadHistory(userId: string) {
@@ -106,12 +102,12 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
     const hipCm = form.sex === "female" ? Number(form.hipCm) : null;
 
     if (!age || !heightCm || !weightKg || !neckCm || !waistCm || (form.sex === "female" && !hipCm)) {
-      setErrorMessage("Completá todos los campos (cadera es obligatoria para mujeres).");
+      setErrorMessage(b.missingFields);
       return;
     }
 
     setSaving(true);
-    setSaved(false);
+    setSavedMessage(null);
     // Each save is a new historical measurement, not an edit of the previous one --
     // that's what makes the chart/table below possible.
     const { error } = await supabase.from("body_profiles").insert({
@@ -130,44 +126,53 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
       return setErrorMessage(error.message);
     }
 
-    // Saving a body profile with nothing waiting on a separate visit to Objetivos
-    // nutricionales -- without this, plan generation fails with "no hay objetivos
-    // guardados" until the user happens to open /targets and click Guardar there.
-    // Only auto-fills when targets haven't been manually customized (is_custom),
-    // same rule /targets itself uses, so an explicit "Personalizar" choice is never
-    // silently overwritten.
+    const profile: BodyProfile = { sex: form.sex, age, heightCm, weightKg, neckCm, waistCm, hipCm, goal: form.goal };
     const { data: existingTargets, error: targetsReadError } = await supabase
       .from("user_nutrient_targets")
       .select("is_custom")
       .eq("user_id", userId);
-    if (!targetsReadError) {
-      const hasCustomTargets = existingTargets?.some((row) => row.is_custom);
-      if (!hasCustomTargets) {
-        const profile: BodyProfile = {
-          sex: form.sex,
-          age,
-          heightCm,
-          weightKg,
-          neckCm,
-          waistCm,
-          hipCm,
-          goal: form.goal,
-        };
-        const suggested = suggestNutrientTargets(profile);
-        await supabase.from("user_nutrient_targets").upsert(
-          [
-            { user_id: userId, nutrient_key: "calories", ...suggested.calories, is_custom: false },
-            { user_id: userId, nutrient_key: "protein_g", ...suggested.protein_g, is_custom: false },
-            { user_id: userId, nutrient_key: "fat_g", ...suggested.fat_g, is_custom: false },
-            { user_id: userId, nutrient_key: "carbs_g", ...suggested.carbs_g, is_custom: false },
-          ],
-          { onConflict: "user_id,nutrient_key" }
-        );
-      }
+    if (targetsReadError) {
+      setSaving(false);
+      return setErrorMessage(targetsReadError.message);
     }
 
+    if (targetsMode(existingTargets) === "none") {
+      // First measurement: there's nothing to overwrite, and plan generation needs
+      // targets -- create them in automatic mode without asking.
+      try {
+        await saveAutomaticTargets(userId, profile);
+      } catch (error) {
+        setSaving(false);
+        return setErrorMessage((error as Error).message);
+      }
+      return finishSave(b.targetsUpdated);
+    }
+
+    // Targets already exist (automatic or manual): the user decides whether this
+    // measurement should replace them. See answerUpdateTargets.
     setSaving(false);
-    setSaved(true);
+    loadHistory(userId);
+    setPendingProfile(profile);
+  }
+
+  /** Yes: recompute from the new measurement and switch to automatic. No: change nothing. */
+  async function answerUpdateTargets(update: boolean) {
+    if (update && pendingProfile) {
+      setSaving(true);
+      try {
+        await saveAutomaticTargets(userId, pendingProfile);
+      } catch (error) {
+        setSaving(false);
+        return setErrorMessage((error as Error).message);
+      }
+    }
+    setPendingProfile(null);
+    finishSave(update ? b.targetsUpdated : t.common.saved);
+  }
+
+  function finishSave(message: string) {
+    setSaving(false);
+    setSavedMessage(message);
     loadHistory(userId);
     onSaved?.();
   }
@@ -202,27 +207,24 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <h1 className="text-xl font-semibold">Perfil corporal</h1>
-      <p className="text-sm text-gray-500">
-        Estos datos se usan para precalcular tus objetivos nutricionales — después los vas a poder personalizar a
-        mano si querés. Cada vez que guardás queda una medición nueva en el historial de abajo.
-      </p>
+      <h1 className="text-xl font-semibold">{b.title}</h1>
+      <p className="text-sm text-gray-500">{b.intro}</p>
 
       <form onSubmit={handleSave} className="flex max-w-md flex-col gap-4">
         <div className="flex gap-3">
           <label className="flex flex-1 flex-col gap-1 text-sm">
-            Sexo
+            {b.sex}
             <select
               value={form.sex}
               onChange={(event) => update("sex", event.target.value as Sex)}
               className="rounded border px-3 py-2"
             >
-              <option value="male">Hombre</option>
-              <option value="female">Mujer</option>
+              <option value="male">{b.male}</option>
+              <option value="female">{b.female}</option>
             </select>
           </label>
           <label className="flex flex-1 flex-col gap-1 text-sm">
-            Edad
+            {b.age}
             <input
               type="number"
               min={1}
@@ -235,7 +237,7 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
 
         <div className="flex gap-3">
           <label className="flex flex-1 flex-col gap-1 text-sm">
-            Estatura (cm)
+            {b.height}
             <input
               type="number"
               min={1}
@@ -246,7 +248,7 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
             />
           </label>
           <label className="flex flex-1 flex-col gap-1 text-sm">
-            Peso (kg)
+            {b.weight}
             <input
               type="number"
               min={1}
@@ -258,10 +260,10 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
           </label>
         </div>
 
-        <p className="text-sm font-medium">Medidas (método Navy, para % de grasa corporal)</p>
+        <p className="text-sm font-medium">{b.measurements}</p>
         <div className="flex gap-3">
           <label className="flex flex-1 flex-col gap-1 text-sm">
-            Cuello (cm)
+            {b.neck}
             <input
               type="number"
               min={1}
@@ -272,7 +274,7 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
             />
           </label>
           <label className="flex flex-1 flex-col gap-1 text-sm">
-            Cintura (cm)
+            {b.waist}
             <input
               type="number"
               min={1}
@@ -284,7 +286,7 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
           </label>
           {form.sex === "female" && (
             <label className="flex flex-1 flex-col gap-1 text-sm">
-              Cadera (cm)
+              {b.hip}
               <input
                 type="number"
                 min={1}
@@ -299,59 +301,95 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
 
         {(bmi !== null || bodyFat !== null) && (
           <div className="rounded border p-3 text-sm text-gray-700">
-            {bmi !== null && <div>IMC: {bmi.toFixed(1)}</div>}
-            {bodyFat !== null && <div>Grasa corporal estimada: {bodyFat.toFixed(1)}%</div>}
+            {bmi !== null && (
+              <div>
+                {b.bmi}: {bmi.toFixed(1)}
+              </div>
+            )}
+            {bodyFat !== null && (
+              <div>
+                {b.estimatedBodyFat}: {bodyFat.toFixed(1)}%
+              </div>
+            )}
           </div>
         )}
 
         <label className="flex flex-col gap-1 text-sm">
-          Objetivo
+          {b.goal}
           <select
             value={form.goal}
             onChange={(event) => update("goal", event.target.value as Goal)}
             className="rounded border px-3 py-2"
           >
-            {GOALS.map(({ value, label }) => (
-              <option key={value} value={value}>
-                {label}
+            {GOALS.map((goal) => (
+              <option key={goal} value={goal}>
+                {b.goals[goal]}
               </option>
             ))}
           </select>
         </label>
-        <p className="text-xs text-gray-500">
-          Asumimos que un objetivo de subir masa o bajar grasa viene acompañado de entrenamiento aparte — esta app
-          no lo provee.
-        </p>
+        <p className="text-xs text-gray-500">{b.trainingNote}</p>
 
-        <button type="submit" disabled={saving} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50">
-          {saving ? "Guardando..." : "Guardar nueva medición"}
+        <button
+          type="submit"
+          disabled={saving || pendingProfile !== null}
+          className="rounded bg-black px-3 py-2 text-white disabled:opacity-50"
+        >
+          {saving ? t.common.saving : b.saveMeasurement}
         </button>
       </form>
 
-      {saved && <p className="text-green-600">Guardado.</p>}
+      {pendingProfile && (
+        <div role="alertdialog" aria-labelledby="update-targets-question" className="flex max-w-md flex-col gap-3 rounded border border-black p-4 dark:border-white">
+          <p id="update-targets-question" className="text-sm font-medium">
+            {b.askUpdateTargets}
+          </p>
+          <p className="text-xs text-gray-500">{b.askUpdateDetail}</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => answerUpdateTargets(true)}
+              disabled={saving}
+              className="rounded bg-black px-3 py-2 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-black"
+            >
+              {saving ? t.common.saving : b.updateYes}
+            </button>
+            <button
+              type="button"
+              onClick={() => answerUpdateTargets(false)}
+              disabled={saving}
+              className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+            >
+              {b.updateNo}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {savedMessage && <p className="text-green-600">{savedMessage}</p>}
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
 
       {history.length > 0 && (
         <div className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">Historial ({history.length} medición{history.length === 1 ? "" : "es"})</h2>
+          <h2 className="text-lg font-semibold">{b.history(history.length)}</h2>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <LineChart title="Peso" unit="kg" color="#2a78d6" points={weightPoints} />
-            <LineChart title="Grasa corporal" unit="%" color="#eb6834" points={bodyFatPoints} />
+            <LineChart title={b.chartWeight} unit="kg" color="#2a78d6" points={weightPoints} />
+            <LineChart title={b.chartBodyFat} unit="%" color="#eb6834" points={bodyFatPoints} />
           </div>
 
           <div className="overflow-x-auto rounded border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50 text-left">
-                  <th className="px-3 py-2 font-medium">Fecha</th>
-                  <th className="px-3 py-2 font-medium">Peso (kg)</th>
-                  <th className="px-3 py-2 font-medium">IMC</th>
-                  <th className="px-3 py-2 font-medium">% Grasa</th>
-                  <th className="px-3 py-2 font-medium">Cuello</th>
-                  <th className="px-3 py-2 font-medium">Cintura</th>
-                  <th className="px-3 py-2 font-medium">Cadera</th>
-                  <th className="px-3 py-2 font-medium">Objetivo</th>
+                  <th className="px-3 py-2 font-medium">{b.colDate}</th>
+                  <th className="px-3 py-2 font-medium">{b.colWeight}</th>
+                  <th className="px-3 py-2 font-medium">{b.colBmi}</th>
+                  <th className="px-3 py-2 font-medium">{b.colBodyFat}</th>
+                  <th className="px-3 py-2 font-medium">{b.colNeck}</th>
+                  <th className="px-3 py-2 font-medium">{b.colWaist}</th>
+                  <th className="px-3 py-2 font-medium">{b.colHip}</th>
+                  <th className="px-3 py-2 font-medium">{b.colGoal}</th>
                 </tr>
               </thead>
               <tbody>
@@ -366,14 +404,14 @@ export function BodyProfileView({ onSaved }: { onSaved?: () => void }) {
                   });
                   return (
                     <tr key={row.measured_at} className="border-b last:border-0">
-                      <td className="px-3 py-2 text-gray-500">{new Date(row.measured_at).toLocaleDateString("es-CO")}</td>
+                      <td className="px-3 py-2 text-gray-500">{formatDate(row.measured_at)}</td>
                       <td className="px-3 py-2">{row.weight_kg}</td>
                       <td className="px-3 py-2">{rowBmi.toFixed(1)}</td>
                       <td className="px-3 py-2">{rowBodyFat !== null ? `${rowBodyFat.toFixed(1)}%` : "—"}</td>
                       <td className="px-3 py-2">{row.neck_cm}</td>
                       <td className="px-3 py-2">{row.waist_cm}</td>
                       <td className="px-3 py-2">{row.hip_cm ?? "—"}</td>
-                      <td className="px-3 py-2">{GOAL_LABEL[row.goal]}</td>
+                      <td className="px-3 py-2">{b.goals[row.goal]}</td>
                     </tr>
                   );
                 })}

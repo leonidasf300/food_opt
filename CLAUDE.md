@@ -65,6 +65,7 @@ pip install -r requirements.txt
 USDA_API_KEY=... python import_usda.py   # needs a personal key: https://api.data.gov/signup/?key (DEMO_KEY's rate limit is unusably low)
 python set_prices_co.py                  # run after import_usda.py -- needs the ingredient rows to already exist
 python import_recipes.py                 # run after both of the above -- needs ingredients + prices
+python set_translations.py               # run last -- fills ES/EN display names (ingredients.name_es, recipes.name_en)
 ```
 
 ### Frontend (`frontend/`)

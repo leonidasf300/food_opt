@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { useSettings } from "@/lib/i18n/SettingsContext";
+import { useCatalogNames } from "@/lib/i18n/useCatalogNames";
 import { useDashboardUser } from "../UserContext";
 
 type Ingredient = { id: string; name: string };
@@ -22,6 +24,11 @@ const EMPTY_LINE: DraftLine = { ingredientId: "", quantity: "" };
 
 export default function RecipesPage() {
   const { id: userId } = useDashboardUser();
+  const { t } = useSettings();
+  const r = t.recipes;
+  const names = useCatalogNames();
+  const byDisplayName = <T,>(items: T[], name: (item: T) => string) =>
+    [...items].sort((a, b) => name(a).localeCompare(name(b)));
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
@@ -94,15 +101,15 @@ export default function RecipesPage() {
     setErrorMessage(null);
 
     const prepTimeMinutes = Number(prepTime);
-    if (!name.trim()) return setErrorMessage("El nombre no puede estar vacío.");
+    if (!name.trim()) return setErrorMessage(r.emptyName);
     if (Number.isNaN(prepTimeMinutes) || prepTimeMinutes <= 0) {
-      return setErrorMessage("El tiempo de preparación debe ser un número mayor a 0.");
+      return setErrorMessage(r.badPrepTime);
     }
     const validLines = lines.filter((line) => line.ingredientId && line.quantity);
-    if (validLines.length === 0) return setErrorMessage("Agregá al menos un ingrediente.");
+    if (validLines.length === 0) return setErrorMessage(r.noIngredients);
     for (const line of validLines) {
       if (Number.isNaN(Number(line.quantity)) || Number(line.quantity) <= 0) {
-        return setErrorMessage("Las cantidades deben ser números mayores a 0.");
+        return setErrorMessage(r.badQuantity);
       }
     }
 
@@ -140,7 +147,7 @@ export default function RecipesPage() {
       resetForm();
       loadRecipes();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar la receta.");
+      setErrorMessage(error instanceof Error ? error.message : r.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -156,18 +163,15 @@ export default function RecipesPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <h1 className="text-xl font-semibold">Recetas</h1>
-      <p className="text-sm text-gray-500">
-        Recetas base disponibles para el optimizador. Podés crear las tuyas — solo vos podés editar o borrar las que
-        creaste; las recetas de muestra (sin dueño) son de solo lectura acá.
-      </p>
+      <h1 className="text-xl font-semibold">{r.title}</h1>
+      <p className="text-sm text-gray-500">{r.intro}</p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded border p-4">
-        <div className="font-medium">{editingId ? "Editar receta" : "Nueva receta"}</div>
+        <div className="font-medium">{editingId ? r.editRecipe : r.newRecipe}</div>
         <div className="flex gap-3">
           <input
             type="text"
-            placeholder="Nombre"
+            placeholder={r.name}
             value={name}
             onChange={(event) => setName(event.target.value)}
             className="flex-1 rounded border px-3 py-2"
@@ -175,7 +179,7 @@ export default function RecipesPage() {
           <input
             type="number"
             min={1}
-            placeholder="Prep (min)"
+            placeholder={r.prepMinutes}
             value={prepTime}
             onChange={(event) => setPrepTime(event.target.value)}
             className="w-32 rounded border px-3 py-2"
@@ -190,10 +194,10 @@ export default function RecipesPage() {
                 onChange={(event) => updateLine(index, { ingredientId: event.target.value })}
                 className="flex-1 rounded border px-3 py-2"
               >
-                <option value="">Ingrediente...</option>
-                {ingredients.map((ingredient) => (
+                <option value="">{r.ingredient}</option>
+                {byDisplayName(ingredients, (i) => names.ingredient(i.name)).map((ingredient) => (
                   <option key={ingredient.id} value={ingredient.id}>
-                    {ingredient.name}
+                    {names.ingredient(ingredient.name)}
                   </option>
                 ))}
               </select>
@@ -201,7 +205,7 @@ export default function RecipesPage() {
                 type="number"
                 min={0}
                 step="any"
-                placeholder="gramos"
+                placeholder={r.grams}
                 value={line.quantity}
                 onChange={(event) => updateLine(index, { quantity: event.target.value })}
                 className="w-28 rounded border px-3 py-2"
@@ -217,17 +221,17 @@ export default function RecipesPage() {
             </div>
           ))}
           <button type="button" onClick={addLine} className="self-start text-sm underline">
-            + agregar ingrediente
+            {r.addIngredient}
           </button>
         </div>
 
         <div className="flex gap-3">
           <button type="submit" disabled={saving} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50">
-            {saving ? "Guardando..." : editingId ? "Guardar cambios" : "Crear receta"}
+            {saving ? t.common.saving : editingId ? r.saveChanges : r.create}
           </button>
           {editingId && (
             <button type="button" onClick={resetForm} className="rounded border px-3 py-2">
-              Cancelar
+              {t.common.cancel}
             </button>
           )}
         </div>
@@ -236,17 +240,17 @@ export default function RecipesPage() {
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
 
       <div className="flex flex-col gap-2">
-        <div className="font-medium">{loading ? "Cargando..." : `${recipes.length} recetas`}</div>
-        {recipes.map((recipe) => (
+        <div className="font-medium">{loading ? t.common.loading : r.count(recipes.length)}</div>
+        {byDisplayName(recipes, (rec) => names.recipe(rec.name)).map((recipe) => (
           <div key={recipe.id} className="rounded border p-3">
             <div className="flex items-start justify-between">
               <div>
-                <div className="font-medium">{recipe.name}</div>
-                <div className="text-sm text-gray-500">{recipe.prep_time_minutes} min de preparación</div>
+                <div className="font-medium">{recipe.created_by === null ? names.recipe(recipe.name) : recipe.name}</div>
+                <div className="text-sm text-gray-500">{r.prepTime(recipe.prep_time_minutes)}</div>
                 <ul className="mt-1 list-inside list-disc text-sm text-gray-700">
                   {recipe.recipe_ingredients.map((ri) => (
                     <li key={ri.ingredient_id}>
-                      {ri.ingredients?.name ?? ri.ingredient_id} — {ri.quantity} g
+                      {ri.ingredients ? names.ingredient(ri.ingredients.name) : ri.ingredient_id} — {ri.quantity} g
                     </li>
                   ))}
                 </ul>
@@ -254,10 +258,10 @@ export default function RecipesPage() {
               {recipe.created_by === userId && (
                 <div className="flex gap-2 text-sm">
                   <button type="button" onClick={() => startEdit(recipe)} className="underline">
-                    Editar
+                    {t.common.edit}
                   </button>
                   <button type="button" onClick={() => handleDelete(recipe.id)} className="text-red-600 underline">
-                    Borrar
+                    {t.common.delete}
                   </button>
                 </div>
               )}

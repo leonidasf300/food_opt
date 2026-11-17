@@ -3,8 +3,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
+import { useSettings } from "@/lib/i18n/SettingsContext";
+import { SettingsSwitcher } from "@/components/SettingsSwitcher";
 
 export default function ResetPasswordPage() {
+  const { t } = useSettings();
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -43,30 +46,31 @@ export default function ResetPasswordPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-      <h1 className="text-xl font-semibold">Elegir contraseña nueva</h1>
+      <SettingsSwitcher showCurrency={false} />
+      <h1 className="text-xl font-semibold">{t.auth.resetTitle}</h1>
 
       {done ? (
         <>
-          <p>Listo, ya podés iniciar sesión con tu contraseña nueva.</p>
+          <p>{t.auth.resetDone}</p>
           <Link href="/login" className="underline">
-            Ir a iniciar sesión
+            {t.auth.goToSignIn}
           </Link>
         </>
       ) : !ready ? (
-        <p className="text-sm text-gray-500">Verificando el link...</p>
+        <p className="text-sm text-gray-500">{t.auth.verifyingLink}</p>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             type="password"
             required
             minLength={6}
-            placeholder="Contraseña nueva"
+            placeholder={t.auth.newPasswordPlaceholder}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="rounded border px-3 py-2"
           />
           <button type="submit" disabled={saving} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50">
-            {saving ? "Guardando..." : "Guardar contraseña"}
+            {saving ? t.common.saving : t.auth.savePassword}
           </button>
         </form>
       )}

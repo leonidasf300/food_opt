@@ -3,8 +3,11 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
+import { useSettings } from "@/lib/i18n/SettingsContext";
+import { SettingsSwitcher } from "@/components/SettingsSwitcher";
 
 export default function ForgotPasswordPage() {
+  const { t } = useSettings();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -30,27 +33,28 @@ export default function ForgotPasswordPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-      <h1 className="text-xl font-semibold">Restablecer contraseña</h1>
+      <SettingsSwitcher showCurrency={false} />
+      <h1 className="text-xl font-semibold">{t.auth.forgotTitle}</h1>
       {sent ? (
-        <p>Revisá tu email: te mandamos un link para elegir una contraseña nueva.</p>
+        <p>{t.auth.forgotSent}</p>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             type="email"
             required
-            placeholder="tu@email.com"
+            placeholder={t.auth.emailPlaceholder}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             className="rounded border px-3 py-2"
           />
           <button type="submit" disabled={sending} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50">
-            {sending ? "Enviando..." : "Enviar link"}
+            {sending ? t.auth.sending : t.auth.sendLink}
           </button>
         </form>
       )}
       {errorMessage && <p className="text-red-600">{errorMessage}</p>}
       <Link href="/login" className="text-sm underline">
-        ← Volver a iniciar sesión
+        {t.auth.backToSignIn}
       </Link>
     </main>
   );

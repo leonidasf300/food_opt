@@ -5,6 +5,8 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { fetchActivePlan, type MealPlan } from "@/lib/mealPlan";
 import { buildTimeline, canUndo, currentStepIndex, type TimelineStep } from "@/lib/timeline";
+import { useSettings } from "@/lib/i18n/SettingsContext";
+import { useCatalogNames } from "@/lib/i18n/useCatalogNames";
 import { useDashboardUser } from "../UserContext";
 import { ShoppingListTable, shoppingTotal } from "../_views/ShoppingListTable";
 
@@ -15,16 +17,13 @@ type RecipeDetail = {
   recipe_ingredients: { quantity: number; ingredients: { name: string } | null }[];
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" });
-}
-
-function stepLabel(step: TimelineStep) {
-  return step.kind === "shopping" ? "Compras" : `Día ${step.dayNumber}`;
-}
-
 export default function TodayPage() {
   const { id: userId } = useDashboardUser();
+  const { t, formatMoney, formatDate } = useSettings();
+  const td = t.today;
+  const names = useCatalogNames();
+  const longDate = (iso: string) => formatDate(iso, { weekday: "long", day: "numeric", month: "long" });
+  const stepLabel = (step: TimelineStep) => (step.kind === "shopping" ? td.shopping : td.day(step.dayNumber));
   const [plan, setPlan] = useState<MealPlan | null>(null);
   const [recipes, setRecipes] = useState<Record<string, RecipeDetail>>({});
   const [selected, setSelected] = useState(0);
@@ -86,13 +85,13 @@ export default function TodayPage() {
   if (!plan) {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-3">
-        <h1 className="text-xl font-semibold">Hoy</h1>
+        <h1 className="text-xl font-semibold">{td.title}</h1>
         <p>
-          Todavía no tenés un plan activo.{" "}
+          {td.noPlanBefore}{" "}
           <Link href="/dashboard/plan" className="underline">
-            Generá uno
+            {td.generateOne}
           </Link>{" "}
-          para empezar el seguimiento.
+          {td.noPlanAfter}
         </p>
       </div>
     );
@@ -105,19 +104,17 @@ export default function TodayPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Hoy</h1>
+        <h1 className="text-xl font-semibold">{td.title}</h1>
         <p className="text-sm text-gray-500">
-          {allDone
-            ? "Terminaste todo el plan."
-            : `Paso ${currentStepIndex(steps)} de ${steps.length - 1}. Marcá cada paso como hecho para avanzar al siguiente.`}
+          {allDone ? td.allDone : td.progress(currentStepIndex(steps), steps.length - 1)}
         </p>
       </div>
 
       {allDone && (
         <div className="rounded border border-green-600 p-4 text-sm">
-          ¡Plan completado!{" "}
+          {td.completedBefore}{" "}
           <Link href="/dashboard/plan" className="underline">
-            Generá el siguiente
+            {td.generateNext}
           </Link>
           .
         </div>
@@ -150,19 +147,19 @@ export default function TodayPage() {
         <div className="flex items-start justify-between gap-2">
           <div>
             <div className="text-xs text-gray-500">
-              Paso {step.index}
-              {step.status === "current" && " · te toca ahora"}
-              {step.status === "pending" && " · pendiente"}
+              {td.step(step.index)}
+              {step.status === "current" && td.yourTurn}
+              {step.status === "pending" && td.pending}
             </div>
-            <h2 className="text-lg font-semibold">{step.kind === "shopping" ? "Compras" : `Día ${step.dayNumber}`}</h2>
-            {step.completedAt && <div className="text-sm text-green-600">Hecho el {formatDate(step.completedAt)}</div>}
+            <h2 className="text-lg font-semibold">{stepLabel(step)}</h2>
+            {step.completedAt && <div className="text-sm text-green-600">{td.doneOn(longDate(step.completedAt))}</div>}
           </div>
           <div className="flex gap-1">
             <button
               type="button"
               onClick={() => setSelected(step.index - 1)}
               disabled={step.index === 0}
-              aria-label="Paso anterior"
+              aria-label={td.prevStep}
               className="rounded border px-3 py-1 disabled:opacity-30"
             >
               ←
@@ -171,7 +168,7 @@ export default function TodayPage() {
               type="button"
               onClick={() => setSelected(step.index + 1)}
               disabled={step.index === steps.length - 1}
-              aria-label="Paso siguiente"
+              aria-label={td.nextStep}
               className="rounded border px-3 py-1 disabled:opacity-30"
             >
               →
@@ -182,8 +179,7 @@ export default function TodayPage() {
         {step.kind === "shopping" ? (
           <>
             <p className="text-sm text-gray-500">
-              Todo lo que necesitás para el plan de {plan.num_days} días. Total a pagar: $
-              {shoppingTotal(plan.shopping_list).toFixed(2)}.
+              {td.shoppingIntro(plan.num_days, formatMoney(shoppingTotal(plan.shopping_list)))}
             </p>
             <ShoppingListTable items={plan.shopping_list} />
           </>
@@ -194,15 +190,15 @@ export default function TodayPage() {
               return (
                 <div key={name} className="rounded border p-3">
                   <div className="font-medium">
-                    {name} × {servings} {servings === 1 ? "porción" : "porciones"}
+                    {names.recipe(name)} × {servings} {td.servings(servings)}
                   </div>
                   {recipe && (
                     <>
-                      <div className="text-sm text-gray-500">{recipe.prep_time_minutes} min de preparación por porción</div>
+                      <div className="text-sm text-gray-500">{td.prepPerServing(recipe.prep_time_minutes)}</div>
                       <ul className="mt-1 list-inside list-disc text-sm text-gray-700 dark:text-gray-300">
                         {recipe.recipe_ingredients.map((ri, i) => (
                           <li key={i}>
-                            {ri.ingredients?.name ?? "?"} — {Math.round(ri.quantity * servings)} g
+                            {ri.ingredients ? names.ingredient(ri.ingredients.name) : "?"} — {Math.round(ri.quantity * servings)} g
                           </li>
                         ))}
                       </ul>
@@ -221,12 +217,10 @@ export default function TodayPage() {
             disabled={saving}
             className="self-start rounded bg-black px-4 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
           >
-            {saving ? "Guardando..." : step.kind === "shopping" ? "Hecho: ya compré todo" : "Hecho: ya lo preparé"}
+            {saving ? t.common.saving : step.kind === "shopping" ? td.doneShopping : td.doneCooking}
           </button>
         )}
-        {step.status === "pending" && (
-          <p className="text-sm text-gray-500">Primero completá el paso {currentStepIndex(steps)}.</p>
-        )}
+        {step.status === "pending" && <p className="text-sm text-gray-500">{td.completeFirst(currentStepIndex(steps))}</p>}
         {canUndo(steps, step.index) && (
           <button
             type="button"
@@ -234,7 +228,7 @@ export default function TodayPage() {
             disabled={saving}
             className="self-start text-sm underline disabled:opacity-50"
           >
-            Deshacer
+            {td.undo}
           </button>
         )}
       </section>

@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { useSettings } from "@/lib/i18n/SettingsContext";
+import { SettingsSwitcher } from "@/components/SettingsSwitcher";
 import { DASHBOARD_GROUPS } from "./sections";
 import { UserContext, type DashboardUser } from "./UserContext";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useSettings();
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -43,7 +46,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (pathname === "/dashboard/setup") {
     return (
       <UserContext.Provider value={user}>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex flex-1 flex-col gap-4 p-6">
+          <div className="mx-auto flex w-full max-w-2xl justify-end">
+            <SettingsSwitcher />
+          </div>
+          {children}
+        </main>
       </UserContext.Provider>
     );
   }
@@ -59,7 +67,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {DASHBOARD_GROUPS.map((group) => (
               <div key={group.key} className="flex items-center gap-1 md:flex-col md:items-stretch">
                 <span className="hidden px-3 text-xs font-medium uppercase tracking-wide text-gray-500 md:block">
-                  {group.label}
+                  {t.nav[group.label]}
                 </span>
                 {group.sections.map((section) => {
                   const active = pathname === section.href;
@@ -73,17 +81,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           : "hover:bg-gray-100 dark:hover:bg-zinc-800"
                       }`}
                     >
-                      {section.label}
+                      {t.nav[section.label]}
                     </Link>
                   );
                 })}
               </div>
             ))}
           </nav>
-          <div className="flex items-center justify-between gap-2 border-t px-4 py-2 text-xs text-gray-500 md:mt-auto md:flex-col md:items-start md:py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-xs text-gray-500 md:mt-auto md:flex-col md:items-start md:py-4">
+            <SettingsSwitcher />
             <span className="truncate">{user.email}</span>
             <button type="button" onClick={handleSignOut} className="self-start underline">
-              Cerrar sesión
+              {t.nav.signOut}
             </button>
           </div>
         </aside>

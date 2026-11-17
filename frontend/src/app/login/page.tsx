@@ -4,11 +4,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { useSettings } from "@/lib/i18n/SettingsContext";
+import { SettingsSwitcher } from "@/components/SettingsSwitcher";
 
 type AuthMode = "signin" | "signup";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useSettings();
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,12 +43,13 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
-      <h1 className="text-xl font-semibold">{authMode === "signup" ? "Crear cuenta" : "Iniciar sesión"}</h1>
+      <SettingsSwitcher showCurrency={false} />
+      <h1 className="text-xl font-semibold">{authMode === "signup" ? t.auth.signUpTitle : t.auth.signInTitle}</h1>
       <form onSubmit={handleAuth} className="flex flex-col gap-3">
         <input
           type="email"
           required
-          placeholder="tu@email.com"
+          placeholder={t.auth.emailPlaceholder}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           className="rounded border px-3 py-2"
@@ -54,13 +58,13 @@ export default function LoginPage() {
           type="password"
           required
           minLength={6}
-          placeholder="Contraseña"
+          placeholder={t.auth.passwordPlaceholder}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           className="rounded border px-3 py-2"
         />
         <button type="submit" disabled={authLoading} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50">
-          {authLoading ? "..." : authMode === "signup" ? "Crear cuenta" : "Entrar"}
+          {authLoading ? "..." : authMode === "signup" ? t.auth.signUpButton : t.auth.signInButton}
         </button>
       </form>
 
@@ -70,10 +74,10 @@ export default function LoginPage() {
           onClick={() => setAuthMode(authMode === "signup" ? "signin" : "signup")}
           className="underline"
         >
-          {authMode === "signup" ? "Ya tengo cuenta" : "Crear cuenta nueva"}
+          {authMode === "signup" ? t.auth.haveAccount : t.auth.createAccount}
         </button>
         <Link href="/forgot-password" className="underline">
-          ¿Olvidaste tu contraseña?
+          {t.auth.forgotLink}
         </Link>
       </div>
 

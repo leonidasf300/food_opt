@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchActivePlan, type MealPlan } from "@/lib/mealPlan";
+import { useSettings } from "@/lib/i18n/SettingsContext";
 import { useDashboardUser } from "../UserContext";
 import { ShoppingListTable, shoppingTotal } from "../_views/ShoppingListTable";
 
 export default function ShoppingListPage() {
   const { id: userId } = useDashboardUser();
+  const { t, formatMoney, formatDate } = useSettings();
   const [plan, setPlan] = useState<MealPlan | null>(null);
   const [checked, setChecked] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -25,21 +27,21 @@ export default function ShoppingListPage() {
   if (!plan) {
     return (
       <p>
-        Todavía no tenés un plan activo.{" "}
+        {t.shopping.noPlanBefore}{" "}
         <Link href="/dashboard/plan" className="underline">
-          Generá uno
+          {t.shopping.generateOne}
         </Link>{" "}
-        primero.
+        {t.shopping.noPlanAfter}
       </p>
     );
   }
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-6">
-      <h1 className="text-xl font-semibold">Lista de compras</h1>
+      <h1 className="text-xl font-semibold">{t.shopping.title}</h1>
       <p className="text-sm text-gray-500">
-        Del plan activo. Total a pagar: ${shoppingTotal(plan.shopping_list).toFixed(2)}.
-        {plan.shopping_done_at && ` Compras hechas el ${new Date(plan.shopping_done_at).toLocaleDateString("es-CO")}.`}
+        {t.shopping.fromActivePlan(formatMoney(shoppingTotal(plan.shopping_list)))}
+        {plan.shopping_done_at && t.shopping.doneOn(formatDate(plan.shopping_done_at))}
       </p>
       <ShoppingListTable items={plan.shopping_list} />
     </div>

@@ -4,13 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { DEFAULT_WEIGHTS } from "@/lib/preferences";
-import { fetchActivePlan, saveActivePlan, type MealPlan, type PlanResponse } from "@/lib/mealPlan";
+import { fetchActivePlan, saveActivePlan, type MealPlan, type PlanResponse } from "@/lib/mealPlan";import { useSettings } from "@/lib/i18n/SettingsContext";
+import { useCatalogNames } from "@/lib/i18n/useCatalogNames";
 import { useDashboardUser } from "../UserContext";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://localhost:8000";
 
 export function PlanView({ onSaved }: { onSaved?: () => void }) {
   const { id: userId } = useDashboardUser();
+  const { t, formatMoney, formatDate } = useSettings();
+  const p = t.plan;
+  const names = useCatalogNames();
   const [numDays, setNumDays] = useState(3);
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<MealPlan | null>(null);
@@ -24,7 +28,7 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
 
   async function handleGenerate() {
     const inProgress = plan && (plan.shopping_done_at || plan.meal_plan_days.some((day) => day.completed_at));
-    if (inProgress && !window.confirm("Ya tenés un plan en curso. ¿Generar uno nuevo y reemplazarlo?")) return;
+    if (inProgress && !window.confirm(p.confirmReplace)) return;
 
     setLoading(true);
     setErrorMessage(null);
@@ -40,7 +44,7 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
 
     if (prefError) return fail(prefError.message);
     if (targetsError) return fail(targetsError.message);
-    if (!targets || targets.length === 0) return fail("No hay objetivos nutricionales guardados todavía — cargalos primero.");
+    if (!targets || targets.length === 0) return fail(p.noTargets);
 
     // Preferences are optional: without saved ones the recommended defaults apply.
     const weights = preferences
@@ -58,18 +62,17 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          num_days: numDays,
-          nutrient_targets: nutrientTargets,
+          num_days: numDays,          nutrient_targets: nutrientTargets,
           weights: { cost: weights.cost / 100, variety: weights.variety / 100, prep_time: weights.prepTime / 100 },
         }),
       });
       if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
-        return fail(errorBody?.detail ?? `Error del backend (HTTP ${response.status})`);
+        return fail(errorBody?.detail ?? p.backendError(response.status));
       }
       body = await response.json();
     } catch {
-      return fail(`No se pudo conectar con el backend en ${BACKEND_URL}. ¿Está corriendo? (uvicorn food_opt.api:app --port 8000)`);
+      return fail(p.backendUnreachable(BACKEND_URL));
     }
 
     try {
@@ -91,15 +94,12 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-6">
-      <h1 className="text-xl font-semibold">Generar plan</h1>
-      <p className="text-sm text-gray-500">
-        Usa tus objetivos y preferencias guardados para pedirle un plan al modelo de optimización. Generar uno nuevo
-        reemplaza al plan activo (el anterior queda archivado).
-      </p>
+      <h1 className="text-xl font-semibold">{p.title}</h1>
+      <p className="text-sm text-gray-500">{p.intro}</p>
 
       <div className="flex items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          Días
+          {p.days}
           <input
             type="number"
             min={1}
@@ -115,7 +115,7 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
           disabled={loading}
           className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
         >
-          {loading ? "Generando..." : plan ? "Generar plan nuevo" : "Generar plan"}
+          {loading ? p.generating : plan ? p.generateNew : p.generate}
         </button>
       </div>
 
@@ -124,20 +124,20 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
       {plan && (
         <div className="flex flex-col gap-4">
           <div className="text-sm text-gray-700">
-            Plan activo del {new Date(plan.created_at).toLocaleDateString("es-CO")} · Costo total:{" "}
-            <strong>${Number(plan.total_cost).toFixed(2)}</strong> · Tiempo total de preparación:{" "}
-            <strong>{Number(plan.total_prep_time_minutes)} min</strong> · Recetas distintas: <strong>{distinctRecipes}</strong>
+            {p.activeSince(formatDate(plan.created_at))} · {p.totalCost}:{" "}
+            <strong>{formatMoney(Number(plan.total_cost))}</strong> · {p.totalPrep}:{" "}
+            <strong>{Number(plan.total_prep_time_minutes)} min</strong> · {p.distinctRecipes}: <strong>{distinctRecipes}</strong>
           </div>
           {plan.meal_plan_days.map((day) => (
             <div key={day.id} className="rounded border p-3">
               <div className="flex justify-between font-medium">
-                <span>Día {day.day_index + 1}</span>
-                {day.completed_at && <span className="text-sm font-normal text-green-600">Hecho</span>}
+                <span>{p.day(day.day_index + 1)}</span>
+                {day.completed_at && <span className="text-sm font-normal text-green-600">{t.common.done}</span>}
               </div>
               <ul className="mt-1 list-inside list-disc text-sm">
                 {Object.entries(day.servings).map(([recipe, servings]) => (
                   <li key={recipe}>
-                    {recipe} × {servings}
+                    {names.recipe(recipe)} × {servings}
                   </li>
                 ))}
               </ul>
@@ -146,7 +146,7 @@ export function PlanView({ onSaved }: { onSaved?: () => void }) {
 
           {!onSaved && (
             <Link href="/dashboard/today" className="underline">
-              Ir al seguimiento de hoy →
+              {p.goToToday}
             </Link>
           )}
         </div>

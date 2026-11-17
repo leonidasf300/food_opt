@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchSetupStatus } from "@/lib/fetchSetupStatus";
 import { firstIncompleteStep } from "@/lib/setupStatus";
+import { useSettings } from "@/lib/i18n/SettingsContext";
 import { useDashboardUser } from "./UserContext";
 
 // Entry point after login: send the user to the guided setup if something's
@@ -11,6 +12,7 @@ import { useDashboardUser } from "./UserContext";
 export default function DashboardEntryPage() {
   const user = useDashboardUser();
   const router = useRouter();
+  const { t } = useSettings();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,5 +24,5 @@ export default function DashboardEntryPage() {
       .catch((error: Error) => setErrorMessage(error.message));
   }, [user.id, router]);
 
-  return errorMessage ? <p className="text-red-600">{errorMessage}</p> : <p className="text-sm text-gray-500">Cargando...</p>;
+  return errorMessage ? <p className="text-red-600">{errorMessage}</p> : <p className="text-sm text-gray-500">{t.common.loading}</p>;
 }
